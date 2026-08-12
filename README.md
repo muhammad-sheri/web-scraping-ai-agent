@@ -26,6 +26,8 @@ Sapiens: A Brief History of Humankind     54.23  In stock
 
 No selectors were written for that page. Point it at a different site with a different sentence and it works the same way.
 
+For online stores there is a second, better mode: `--all-products` pulls a Shopify store's **complete** catalogue — every variant, exact SKUs and prices — straight from the store's own API, with no LLM and no cost. See [E-commerce](#e-commerce-the-complete-catalogue-exactly).
+
 Inspired by the [Web Scraping AI Agent](https://github.com/Shubhamsaboo/awesome-llm-apps/tree/main/starter_ai_agents/web_scraping_ai_agent) in [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-apps), rebuilt as a standalone package with its own extraction pipeline (no ScrapeGraphAI dependency), a CLI, a local-model option and a test suite.
 
 ---
@@ -61,6 +63,49 @@ Measured on live pages, with `qwen2.5:3b` running locally on an M-series Mac:
 Hacker News compresses less because it is built from nested layout tables and is almost entirely links. Those tables are detected and unwrapped rather than rendered as markdown grids — without that, the same page cleaned to 33,058 chars (95% of raw) and cost twice the tokens.
 
 The schema step is what keeps results stable: every record has the same keys in the same order, so chunk 7 of a long page cannot invent a different shape from chunk 1, and CSV columns always line up.
+
+---
+
+## E-commerce: the complete catalogue, exactly
+
+For online stores, AI extraction is usually the *wrong* tool — and the agent will tell you so.
+
+Every **Shopify** storefront publishes its own catalogue as JSON at `/products.json`. That is a public endpoint by design: it is what the store's own JavaScript reads. Going there beats reading the rendered page on every axis that matters.
+
+```bash
+scrape-agent https://www.allbirds.com --all-products --csv catalogue.csv
+```
+
+|  | Reading the page with an LLM | `--all-products` |
+|---|---|---|
+| Coverage | the products on page 1 | the **entire** catalogue, paginated |
+| Prices | whatever the page displayed | exact, plus `compare_at_price` (the discount) |
+| Variants | usually missed | **every** size/colour, each with its own SKU and stock flag |
+| Accuracy | inferred, can misread | the store's own records |
+| Cost | tokens per page | **zero** — no LLM at all |
+| Speed | ~25s per page | 291 products in ~2 seconds |
+
+Columns you get: `product_id, title, url, vendor, product_type, tags, published_at, description, variant_title, sku, price, compare_at_price, available, grams, image`.
+
+Scope it to one collection, or cap it while testing:
+
+```bash
+scrape-agent https://store.com/collections/mens --all-products --csv mens.csv
+scrape-agent https://store.com --all-products --max-products 50
+```
+
+No key and no model are needed for this mode. If the URL is not a Shopify store, it says so and points you at the prompt-based route. And when you run a normal scrape against a store that *is* Shopify, the agent notices and suggests the better command.
+
+### Non-Shopify stores
+
+Use a prompt and follow the pagination:
+
+```bash
+scrape-agent https://shop.example.com/category "product name, price and link" \
+    --all-pages --max-pages 10 --csv products.csv
+```
+
+It follows `rel="next"`, "Next" links and arrow glyphs, staying on the same site and refusing to revisit a page. The schema is designed once on page 1 and reused, so the columns stay identical across every page.
 
 ---
 
@@ -134,6 +179,10 @@ Useful flags:
 
 | Flag | What it does |
 |---|---|
+| `--all-products` | Shopify: complete catalogue from the store's JSON API, no LLM |
+| `--max-products N` | Cap products in catalogue mode |
+| `--all-pages` | Follow "next" links instead of stopping at page 1 |
+| `--max-pages N` | Page limit for `--all-pages` (default 5) |
 | `--provider {openai,ollama}` | Pick the backend |
 | `--model NAME` | Model for that backend |
 | `--render {auto,always,never}` | Headless browser policy (default `auto`) |
@@ -197,15 +246,15 @@ Everything is env-driven (see `.env.example`):
 pytest
 ```
 
-91 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, and the full agent loop against a stubbed provider.
+125 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, and the full agent loop against a stubbed provider.
 
-Several are regression tests for bugs found by running the thing against real sites rather than by reading the code — the planner guessing "one record" on a 20-item listing and truncating away 19 rows, and markdown link syntax leaking into extracted values.
+Several are regression tests for bugs found by running against real sites rather than by reading the code: the planner guessing "one record" on a 20-item listing and truncating away 19 rows, markdown link syntax leaking into extracted values, and a next-link matcher that missed the very common `pagination__next` class because `_` counts as a word character in `\b`.
 
 ---
 
 ## Limitations
 
-- **One page per run.** No crawling or pagination yet; call it per URL.
+- **Some big retailers block scrapers outright.** Amazon is the obvious one. That is a fetching problem every scraper shares, not something the AI layer can solve. Most stores — including essentially all Shopify ones — are fine.
 - **The model can still be wrong.** It only ever sees text that was genuinely on the page and is told to return `null` rather than guess, but extraction from ambiguous layouts is not perfect. Spot-check before trusting a dataset.
 - **Small local models produce some junk rows.** On the Hacker News run above, `qwen2.5:3b` also returned the site's own nav links as if they were stories. Larger models (`qwen2.5:7b`, `gpt-4o-mini`) don't. Filtering rows where every field but one is `null` clears most of it.
 - **Small local models struggle with wide schemas.** Under ~7B parameters, keep to a handful of fields.

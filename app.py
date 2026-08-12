@@ -18,6 +18,7 @@ from scraper_agent.output import columns_for
 from scraper_agent.providers.base import ProviderError
 from scraper_agent.providers.ollama_provider import OllamaProvider
 from scraper_agent.providers.openai_provider import OpenAIProvider
+from scraper_agent.shopify import ShopifyError, is_shopify_store
 
 st.set_page_config(page_title="Web Scraping AI Agent", page_icon="🕸️", layout="wide")
 
@@ -105,26 +106,62 @@ with st.sidebar:
             help="Set these to skip schema inference and force exact column names.",
         )
 
-st.subheader("What should the agent scrape?")
-example = st.selectbox("Start from an example", ["—"] + list(EXAMPLES))
-default_url, default_prompt = EXAMPLES.get(example, ("", ""))
+mode = st.radio(
+    "Mode",
+    ["Ask in plain language", "Full Shopify catalogue"],
+    horizontal=True,
+    help="Shopify stores publish their whole catalogue as JSON — exact prices, SKUs and "
+    "every size variant, with no AI involved and no cost.",
+)
+shopify_mode = mode == "Full Shopify catalogue"
 
-col_url, col_prompt = st.columns([1, 2])
-with col_url:
-    url = st.text_input("URL", value=default_url, placeholder="example.com/products")
-with col_prompt:
-    prompt = st.text_area(
-        "What to extract",
-        value=default_prompt,
-        placeholder="every product with its name, price and link",
-        height=80,
+if shopify_mode:
+    st.subheader("Which store?")
+    url = st.text_input(
+        "Store URL", placeholder="https://www.allbirds.com", key="shop_url"
+    )
+    prompt = ""
+    limit_all = st.toggle("Fetch the entire catalogue", value=True)
+    max_products = (
+        None if limit_all else int(st.number_input("Product limit", 1, 5_000, 50, step=10))
+    )
+    st.caption(
+        "Works on any Shopify store. Returns one row per variant (each size/colour has "
+        "its own SKU, price and stock flag). Not a Shopify store? Use the other mode."
+    )
+else:
+    st.subheader("What should the agent scrape?")
+    example = st.selectbox("Start from an example", ["—"] + list(EXAMPLES))
+    default_url, default_prompt = EXAMPLES.get(example, ("", ""))
+
+    col_url, col_prompt = st.columns([1, 2])
+    with col_url:
+        url = st.text_input("URL", value=default_url, placeholder="example.com/products")
+    with col_prompt:
+        prompt = st.text_area(
+            "What to extract",
+            value=default_prompt,
+            placeholder="every product with its name, price and link",
+            height=80,
+        )
+
+    follow_pages = st.toggle(
+        "Follow 'next' links",
+        value=False,
+        help="Listings usually span several pages. Turn this on to extract all of them.",
+    )
+    max_pages = (
+        int(st.number_input("Max pages", 1, 50, 5)) if follow_pages else 1
     )
 
 run = st.button("Scrape", type="primary", use_container_width=True)
 
 if run:
-    if not url.strip() or not prompt.strip():
-        st.error("A URL and a description of what to extract are both required.")
+    if not url.strip():
+        st.error("A URL is required.")
+        st.stop()
+    if not shopify_mode and not prompt.strip():
+        st.error("Describe what you want extracted.")
         st.stop()
 
     run_settings = Settings(
@@ -135,14 +172,16 @@ if run:
         }
     )
 
-    try:
-        if provider_name == "openai":
-            provider = OpenAIProvider(model=model, api_key=api_key or None)
-        else:
-            provider = OllamaProvider(model=model, host=run_settings.ollama_host)
-    except ProviderError as exc:
-        st.error(str(exc))
-        st.stop()
+    provider = None
+    if not shopify_mode:  # the Shopify path needs no model and no key
+        try:
+            if provider_name == "openai":
+                provider = OpenAIProvider(model=model, api_key=api_key or None)
+            else:
+                provider = OllamaProvider(model=model, host=run_settings.ollama_host)
+        except ProviderError as exc:
+            st.error(str(exc))
+            st.stop()
 
     status = st.status("Working…", expanded=True)
     agent = ScrapeAgent(
@@ -150,16 +189,36 @@ if run:
     )
 
     try:
-        result = agent.run(
-            url,
-            prompt,
-            render={"never": False, "auto": None, "always": True}[render_mode],
-            fields=[f for f in fields_raw.split(",") if f.strip()] if fields_raw else None,
-            respect_robots=respect_robots,
-            strip_boilerplate=strip_boilerplate,
-            keep_markdown=True,
-        )
-    except (FetchError, ProviderError) as exc:
+        if shopify_mode:
+            if not is_shopify_store(url, run_settings):
+                status.update(label="Not a Shopify store", state="error")
+                st.error(
+                    f"{url} has no public /products.json, so it is not a Shopify store. "
+                    "Switch to 'Ask in plain language' and describe what you want instead."
+                )
+                st.stop()
+            result = agent.run_catalogue(url, max_products=max_products)
+        elif follow_pages:
+            result = agent.run_pages(
+                url,
+                prompt,
+                max_pages=max_pages,
+                render={"never": False, "auto": None, "always": True}[render_mode],
+                fields=[f for f in fields_raw.split(",") if f.strip()] if fields_raw else None,
+                respect_robots=respect_robots,
+                strip_boilerplate=strip_boilerplate,
+            )
+        else:
+            result = agent.run(
+                url,
+                prompt,
+                render={"never": False, "auto": None, "always": True}[render_mode],
+                fields=[f for f in fields_raw.split(",") if f.strip()] if fields_raw else None,
+                respect_robots=respect_robots,
+                strip_boilerplate=strip_boilerplate,
+                keep_markdown=True,
+            )
+    except (FetchError, ProviderError, ShopifyError) as exc:
         status.update(label="Failed", state="error")
         st.error(str(exc))
         st.stop()
@@ -172,12 +231,16 @@ if run:
 
     metrics = st.columns(4)
     metrics[0].metric("Records", result.count)
-    metrics[1].metric("LLM calls", result.usage.get("calls", 0))
+    metrics[1].metric("Pages" if result.pages > 1 else "LLM calls",
+                      result.pages if result.pages > 1 else result.usage.get("calls", 0))
     metrics[2].metric("Tokens", f"{result.usage.get('total_tokens', 0):,}")
-    metrics[3].metric(
-        "Est. cost", "free (local)" if provider_name == "ollama"
-        else (f"${result.cost_usd:.4f}" if result.cost_usd is not None else "—")
-    )
+    if shopify_mode:
+        cost = "free (store API)"
+    elif provider_name == "ollama":
+        cost = "free (local)"
+    else:
+        cost = f"${result.cost_usd:.4f}" if result.cost_usd is not None else "—"
+    metrics[3].metric("Est. cost", cost)
 
     if result.records:
         frame = pd.DataFrame(result.records, columns=columns_for(result.records))
@@ -205,7 +268,10 @@ if run:
             "stripping)."
         )
 
-    with st.expander("Schema the agent designed"):
-        st.json(result.plan)
-    with st.expander(f"Cleaned page content sent to the model ({result.markdown_chars:,} chars)"):
-        st.code(result.markdown[:20_000] or "(empty)", language="markdown")
+    if not shopify_mode:
+        with st.expander("Schema the agent designed"):
+            st.json(result.plan)
+        with st.expander(
+            f"Cleaned page content sent to the model ({result.markdown_chars:,} chars)"
+        ):
+            st.code(result.markdown[:20_000] or "(empty)", language="markdown")
