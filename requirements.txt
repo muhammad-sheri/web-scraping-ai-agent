@@ -1,0 +1,17 @@
+# Core agent
+httpx>=0.27
+beautifulsoup4>=4.12
+python-dotenv>=1.0
+openai>=1.40
+
+# Streamlit UI (app.py)
+streamlit>=1.36
+pandas>=2.0
+
+# Tests
+pytest>=8.0
+
+# Optional: JavaScript-rendered pages.
+# Install separately, it pulls a browser binary:
+#   pip install playwright && playwright install chromium
+# playwright>=1.44

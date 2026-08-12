@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Gadget Shop — Catalogue</title>
+  <meta name="description" content="Buy gadgets">
+  <style>.price { color: red }</style>
+  <script>window.__DATA__ = {"tracking": true};</script>
+</head>
+<body>
+  <nav><a href="/">Home</a> <a href="/about">About</a> <a href="/cart">Cart</a></nav>
+  <header><h1>Gadget Shop</h1></header>
+
+  <main>
+    <h2>Featured products</h2>
+    <ul class="products">
+      <li>
+        <a href="/p/widget-pro">Widget Pro</a>
+        <span class="price">$49.99</span>
+        <em>In stock</em>
+      </li>
+      <li>
+        <a href="/p/widget-mini">Widget Mini</a>
+        <span class="price">$19.50</span>
+        <em>Out of stock</em>
+      </li>
+    </ul>
+
+    <h2>Specifications</h2>
+    <table>
+      <tr><th>Model</th><th>Weight</th><th>Battery</th></tr>
+      <tr><td>Widget Pro</td><td>240 g</td><td>18 h</td></tr>
+      <tr><td>Widget Mini</td><td>90 g</td><td>9 h</td></tr>
+    </table>
+
+    <p>Prices include VAT. See our <a href="/shipping">shipping policy</a>.</p>
+    <img src="/img/banner.png" alt="Summer sale">
+
+    <pre><code>curl https://api.example.com/products</code></pre>
+    <blockquote>Best gadgets I have ever owned.</blockquote>
+  </main>
+
+  <footer><p>© 2026 Gadget Shop</p><a href="/privacy">Privacy</a></footer>
+  <noscript>Enable JavaScript</noscript>
+</body>
+</html>
