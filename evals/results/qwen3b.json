@@ -1,0 +1,113 @@
+{
+  "created_at": "2026-08-13T03:26:02+00:00",
+  "runs": [
+    {
+      "page_url": "https://www.allbirds.com/collections/mens",
+      "provider": "ollama",
+      "model": "qwen2.5:3b",
+      "prompt": "every product on this page with its title and price",
+      "metrics": {
+        "truth_count": 35,
+        "predicted_count": 34,
+        "matched_count": 32,
+        "price_comparable": 32,
+        "price_correct": 32,
+        "fields_total": 68,
+        "fields_filled": 68,
+        "missed_titles": [
+          "Men's Wool Runner - Natural White (Cream Sole)",
+          "Men's Trail Runner - True Navy/Hazy Indigo (Natural Black Sole)",
+          "Men's Strider Explore - Natural Black (Dark Grey Sole)"
+        ],
+        "hallucinated_titles": [
+          "Men's Wool Runners Natural White",
+          "Men's Trail Runners True Navy/Hazy Indigo"
+        ],
+        "recall": 0.9143,
+        "precision": 0.9412,
+        "f1": 0.9276,
+        "hallucination_rate": 0.0588,
+        "price_accuracy": 1.0,
+        "field_completeness": 1.0
+      },
+      "predicted": [],
+      "truth_count": 35,
+      "catalogue_size": 93,
+      "elapsed_s": 24.16,
+      "tokens": 9544,
+      "error": null
+    },
+    {
+      "page_url": "https://www.deathwishcoffee.com/collections/all",
+      "provider": "ollama",
+      "model": "qwen2.5:3b",
+      "prompt": "every product on this page with its title and price",
+      "metrics": {
+        "truth_count": 27,
+        "predicted_count": 24,
+        "matched_count": 24,
+        "price_comparable": 24,
+        "price_correct": 24,
+        "fields_total": 48,
+        "fields_filled": 48,
+        "missed_titles": [
+          "Dark Roast, Cold Brew Coffee, Unsweetened",
+          "Dark Roast Instant Coffee",
+          "Death Wish Coffee Digital Gift Card"
+        ],
+        "hallucinated_titles": [],
+        "recall": 0.8889,
+        "precision": 1.0,
+        "f1": 0.9412,
+        "hallucination_rate": 0.0,
+        "price_accuracy": 1.0,
+        "field_completeness": 1.0
+      },
+      "predicted": [],
+      "truth_count": 27,
+      "catalogue_size": 143,
+      "elapsed_s": 26.94,
+      "tokens": 7102,
+      "error": null
+    },
+    {
+      "page_url": "https://drinkolipop.com/collections/all",
+      "provider": "ollama",
+      "model": "qwen2.5:3b",
+      "prompt": "every product on this page with its title and price",
+      "metrics": {
+        "truth_count": 43,
+        "predicted_count": 34,
+        "matched_count": 34,
+        "price_comparable": 34,
+        "price_correct": 0,
+        "fields_total": 68,
+        "fields_filled": 68,
+        "missed_titles": [
+          "Vintage Cola",
+          "Cherry Cola",
+          "Gift Card",
+          "Orange Cream",
+          "Vintage Cola",
+          "Ginger Ale",
+          "Crisp Apple",
+          "Classic Grape",
+          "Strawberry Vanilla"
+        ],
+        "hallucinated_titles": [],
+        "recall": 0.7907,
+        "precision": 1.0,
+        "f1": 0.8831,
+        "hallucination_rate": 0.0,
+        "price_accuracy": 0.0,
+        "field_completeness": 1.0
+      },
+      "predicted": [],
+      "truth_count": 43,
+      "catalogue_size": 51,
+      "elapsed_s": 29.65,
+      "tokens": 7420,
+      "error": null
+    }
+  ]
+}

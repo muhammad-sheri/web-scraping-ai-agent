@@ -26,9 +26,13 @@ Sapiens: A Brief History of Humankind     54.23  In stock
 
 No selectors were written for that page. Point it at a different site with a different sentence and it works the same way.
 
-For online stores there is a second, better mode: `--all-products` pulls a Shopify store's **complete** catalogue — every variant, exact SKUs and prices — straight from the store's own API, with no LLM and no cost. See [E-commerce](#e-commerce-the-complete-catalogue-exactly).
+Three things make it more than a demo:
 
-Inspired by the [Web Scraping AI Agent](https://github.com/Shubhamsaboo/awesome-llm-apps/tree/main/starter_ai_agents/web_scraping_ai_agent) in [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-apps), rebuilt as a standalone package with its own extraction pipeline (no ScrapeGraphAI dependency), a CLI, a local-model option and a test suite.
+- **It knows when not to use AI.** For Shopify stores, `--all-products` pulls the **complete** catalogue — every variant, exact SKUs and prices — from the store's own API, with no LLM and no cost. → [E-commerce](#e-commerce-the-complete-catalogue-exactly)
+- **It measures its own accuracy.** Shopify stores double as a free answer key, so extraction quality is a number, not a claim. → [The numbers](#does-it-actually-work-here-are-the-numbers)
+- **It plugs into Claude.** An MCP server exposes all of it, including the accuracy check, as tools. → [MCP](#use-it-from-claude-mcp)
+
+Inspired by the [Web Scraping AI Agent](https://github.com/Shubhamsaboo/awesome-llm-apps/tree/main/starter_ai_agents/web_scraping_ai_agent) in [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-apps), rebuilt as a standalone package with its own extraction pipeline (no ScrapeGraphAI dependency), a CLI, a local-model option, an eval harness and a test suite.
 
 ---
 
@@ -106,6 +110,85 @@ scrape-agent https://shop.example.com/category "product name, price and link" \
 ```
 
 It follows `rel="next"`, "Next" links and arrow glyphs, staying on the same site and refusing to revisit a page. The schema is designed once on page 1 and reused, so the columns stay identical across every page.
+
+---
+
+## Does it actually work? Here are the numbers
+
+Most scraping agents ask you to take their accuracy on faith. This one measures itself, because Shopify stores hand out a free answer key: the store publishes its own records at `/products.json`, and renders those same products as HTML. So the store supplies both the question and the correct answer — **no hand-labelling, and every Shopify store on the internet is a fresh test case.**
+
+```bash
+scrape-agent-eval https://www.allbirds.com/collections/mens --model ollama:qwen2.5:3b
+```
+
+Measured on three real Shopify stores with `qwen2.5:3b` running locally, prompt held constant at *"every product on this page with its title and price"*:
+
+| Store | Model | On page | Found | Recall | Precision | Hallucinated | Price accuracy | Time |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| allbirds.com | `qwen2.5:3b` | 35 | 32 | 91% | 94% | 6% | 100% | 24s |
+| deathwishcoffee.com | `qwen2.5:3b` | 27 | 24 | 89% | 100% | 0% | 100% | 27s |
+| drinkolipop.com | `qwen2.5:3b` | 43 | 34 | 79% | 100% | **0%** | **0%** | 30s |
+
+Raw results: [`evals/results/`](evals/results/).
+
+### What the benchmark caught: silent price fabrication
+
+That 0% is the finding worth having. Olipop's collection page **displays no prices at all** — there is not a single `$nn.nn` anywhere in the page content the model receives. The store's real price is $35.99.
+
+The model returned **$12.99 for every product on the page.**
+
+Not a misread — an invention, uniform across 34 records, despite a system prompt that explicitly says *"If a field has no value in the content, return null for it."* A plausible-looking number in every row, with nothing behind it.
+
+This is the failure mode that actually hurts in production: not a crash, not an empty result, but confident wrong data that looks fine in a spreadsheet. **192 offline tests never had a chance of finding it.** The eval found it on the third store.
+
+That is the argument for evals in one example.
+
+**How the scoring works.** The `/products/<handle>` links in the page define which products were genuinely visible; the API then supplies their true titles and prices. Extracted records are matched to truth by normalised title (exact → contiguous containment → fuzzy ratio ≥ 0.85), each truth row consumed at most once. Metrics: **recall** (of the products on the page, how many were found), **precision**, **hallucination rate** (records matching no real product), and **price accuracy** (within 1%).
+
+### The eval had a bug, and that is the point
+
+The first version accepted a `--max-products` flag to keep slow local runs short. It capped the *truth set* but the model still read the *whole page*, so every correct product past the cap scored as a false positive. It reported **59% precision** for output that was essentially right — the "hallucinations" turned out to be real Allbirds colourways.
+
+Uncapped, the same model and page scored **94%**.
+
+An eval that is silently wrong is worse than no eval, so the option was removed rather than documented, and two regression tests now assert it cannot come back. This is the whole reason to build evals: the failure was in the measurement, and nothing but a measurement would have found it.
+
+---
+
+## Use it from Claude (MCP)
+
+The agent runs as an [MCP](https://modelcontextprotocol.io) server, so Claude Desktop, Claude Code, or any MCP client can drive it directly.
+
+```bash
+pip install -e ".[mcp]"     # or: pip install fastmcp
+```
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "web-scraping-ai-agent": {
+      "command": "/absolute/path/to/web-scraping-ai-agent/.venv/bin/scrape-agent-mcp"
+    }
+  }
+}
+```
+
+For Claude Code: `claude mcp add web-scraping-ai-agent -- /absolute/path/to/.venv/bin/scrape-agent-mcp`
+
+Then just ask. Four tools are exposed:
+
+| Tool | What it does |
+|---|---|
+| `check_store` | Is this Shopify? Routes you to the right tool before any tokens are spent |
+| `scrape_page` | Natural-language extraction, optionally across paginated listings |
+| `shopify_catalogue` | The complete, exact catalogue — no LLM, no cost |
+| `evaluate_extraction` | **Reports the agent's own measured accuracy on a store** |
+
+That last tool is the unusual one: you can ask Claude *"how accurate are you on this store?"* and get real measured numbers back, not a guess.
+
+**On context discipline:** a catalogue can run to thousands of rows, and dumping those into a client's context is the classic agent failure. Every tool caps its inline payload, sets a `truncated` flag, writes the full dataset to disk and returns the path — a readable sample plus a pointer, never a wall of JSON. No API key is needed either: the server defaults to local Ollama unless an OpenAI key is actually present.
 
 ---
 
@@ -196,6 +279,20 @@ Useful flags:
 
 Exit codes: `0` records found, `3` none found, `1` fetch/provider error, `2` bad usage.
 
+### Measuring accuracy
+
+```bash
+# one store, one model
+scrape-agent-eval https://www.allbirds.com/collections/mens
+
+# compare models on several stores, save the results
+scrape-agent-eval https://store-a.com/collections/all https://store-b.com/collections/all \
+    --model ollama:qwen2.5:3b --model ollama:qwen2.5:7b \
+    --json evals/results/run.json --markdown evals/results/run.md
+```
+
+The prompt is held constant across every run, because comparing models only means something if they answered the same question. Any Shopify collection page works as a benchmark.
+
 ### Streamlit app
 
 ```bash
@@ -246,18 +343,25 @@ Everything is env-driven (see `.env.example`):
 pytest
 ```
 
-125 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, and the full agent loop against a stubbed provider.
+192 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, title matching and metric arithmetic against hand-computed fixtures, ground-truth scoping, the MCP tool surface via an in-memory client, and the full agent loop against a stubbed provider.
 
-Several are regression tests for bugs found by running against real sites rather than by reading the code: the planner guessing "one record" on a 20-item listing and truncating away 19 rows, markdown link syntax leaking into extracted values, and a next-link matcher that missed the very common `pagination__next` class because `_` counts as a word character in `\b`.
+Several are regression tests for bugs found by running against real sites rather than by reading the code:
+
+- the planner guessing "one record" on a 20-item listing and truncating away 19 rows
+- markdown link syntax leaking into extracted values
+- a next-link matcher that missed the very common `pagination__next` class, because `_` counts as a word character in `\b`
+- apostrophes splitting `Men's` into two tokens, so `Mens` failed to match exactly
+- **the eval capping its own ground truth and manufacturing false positives** (see above)
 
 ---
 
 ## Limitations
 
 - **Some big retailers block scrapers outright.** Amazon is the obvious one. That is a fetching problem every scraper shares, not something the AI layer can solve. Most stores — including essentially all Shopify ones — are fine.
-- **The model can still be wrong.** It only ever sees text that was genuinely on the page and is told to return `null` rather than guess, but extraction from ambiguous layouts is not perfect. Spot-check before trusting a dataset.
-- **Small local models produce some junk rows.** On the Hacker News run above, `qwen2.5:3b` also returned the site's own nav links as if they were stories. Larger models (`qwen2.5:7b`, `gpt-4o-mini`) don't. Filtering rows where every field but one is `null` clears most of it.
+- **The model can still be wrong.** It only ever sees text that was genuinely on the page and is told to return `null` rather than guess, but extraction from ambiguous layouts is not perfect. The point of the benchmark above is that you do not have to guess how wrong — run it on a store like yours.
+- **Small local models produce some junk rows.** On the Hacker News run above, `qwen2.5:3b` returned the site's own nav links as if they were stories. Filtering rows where every field but one is `null` clears most of it.
 - **Small local models struggle with wide schemas.** Under ~7B parameters, keep to a handful of fields.
+- **The benchmark only covers Shopify stores**, since that is where free ground truth exists. Accuracy on a news site or job board is not measured by it — treat the numbers as evidence about product-listing extraction specifically, not a universal score.
 - **Login-walled and aggressively bot-protected pages** are out of scope.
 
 ## Responsible use

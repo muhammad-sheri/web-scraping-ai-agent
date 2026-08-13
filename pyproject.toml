@@ -26,17 +26,20 @@ dependencies = [
 [project.optional-dependencies]
 ui = ["streamlit>=1.36", "pandas>=2.0"]
 browser = ["playwright>=1.44"]
-dev = ["pytest>=8.0"]
+mcp = ["fastmcp>=3.0"]
+dev = ["pytest>=8.0", "fastmcp>=3.0"]
 
 [project.scripts]
 scrape-agent = "scraper_agent.cli:main"
+scrape-agent-eval = "scraper_agent.evals.cli:main"
+scrape-agent-mcp = "scraper_agent.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/muhammad-sheri/web-scraping-ai-agent"
 Issues = "https://github.com/muhammad-sheri/web-scraping-ai-agent/issues"
 
 [tool.setuptools]
-packages = ["scraper_agent", "scraper_agent.providers"]
+packages = ["scraper_agent", "scraper_agent.providers", "scraper_agent.evals"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

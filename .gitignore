@@ -20,6 +20,10 @@ venv/
 *.json
 !package.json
 !tests/fixtures/*.json
+# Benchmark results are deliberately committed: the accuracy claims in the
+# README have to be backed by the runs that produced them.
+!evals/results/*.json
+!evals/results/*.md
 out/
 output/
 
