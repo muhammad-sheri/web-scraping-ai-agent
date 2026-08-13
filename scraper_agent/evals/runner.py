@@ -79,14 +79,18 @@ def evaluate_page(
         result = agent.run(page_url, prompt)
 
         metrics, _ = score_extraction(result.records, truth.records)
+        metrics.ungrounded_removed = result.ungrounded_removed
         run.metrics = metrics.to_dict()
         run.tokens = result.usage.get("total_tokens", 0)
         if keep_predictions:
             run.predicted = result.records
 
+        price = metrics.price_accuracy
         report(
             f"recall {metrics.recall:.0%} · precision {metrics.precision:.0%} · "
-            f"price {metrics.price_accuracy:.0%}"
+            f"price {'n/a' if price is None else format(price, '.0%')}"
+            + (f" · {metrics.ungrounded_removed} invented number(s) discarded"
+               if metrics.ungrounded_removed else "")
         )
     except Exception as exc:  # a failed cell must not kill the whole benchmark
         run.error = f"{type(exc).__name__}: {exc}"
@@ -159,24 +163,26 @@ def to_markdown(benchmark: Benchmark) -> str:
     """A table suitable for pasting into the README."""
     header = (
         "| Store | Model | On page | Found | Recall | Precision | Hallucinated | "
-        "Price accuracy | Time |\n"
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|"
+        "Price accuracy | Invented | Time |\n"
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|"
     )
     lines = [header]
 
     for run in benchmark.runs:
         if not run.ok:
             lines.append(
-                f"| {_store_name(run.page_url)} | {run.model} | — | — | — | — | — | — | "
+                f"| {_store_name(run.page_url)} | {run.model} | — | — | — | — | — | — | — | "
                 f"failed |"
             )
             continue
         m = run.metrics
+        price = m.get("price_accuracy")
+        price_cell = "n/a" if price is None else f"{price:.0%}"
         lines.append(
             f"| {_store_name(run.page_url)} | `{run.model}` | {m['truth_count']} | "
             f"{m['matched_count']} | {m['recall']:.0%} | {m['precision']:.0%} | "
-            f"{m['hallucination_rate']:.0%} | {m['price_accuracy']:.0%} | "
-            f"{run.elapsed_s:.0f}s |"
+            f"{m['hallucination_rate']:.0%} | {price_cell} | "
+            f"{m.get('ungrounded_removed', 0)} | {run.elapsed_s:.0f}s |"
         )
 
     return "\n".join(lines)

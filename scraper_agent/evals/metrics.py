@@ -63,6 +63,8 @@ class ExtractionMetrics:
 
     price_comparable: int = 0
     price_correct: int = 0
+    #: Numeric answers discarded because they were absent from the page.
+    ungrounded_removed: int = 0
 
     fields_total: int = 0
     fields_filled: int = 0
@@ -87,8 +89,15 @@ class ExtractionMetrics:
         return round(1.0 - self.precision, 4) if self.predicted_count else 0.0
 
     @property
-    def price_accuracy(self) -> float:
-        """Among matched products, share priced correctly within tolerance."""
+    def price_accuracy(self) -> float | None:
+        """Among matched products, share priced correctly within tolerance.
+
+        None when nothing was comparable — a page with no prices, where the
+        model correctly returned null, must not score the same as a page where
+        it got every price wrong.
+        """
+        if not self.price_comparable:
+            return None
         return _ratio(self.price_correct, self.price_comparable)
 
     @property

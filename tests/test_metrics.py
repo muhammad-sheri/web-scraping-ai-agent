@@ -92,10 +92,12 @@ def test_wrong_price_lowers_price_accuracy_but_not_recall():
 
 
 def test_missing_price_is_not_scored_as_wrong():
+    """None, not 0%. A page with no prices where the model correctly said
+    nothing must not score the same as getting every price wrong."""
     predicted = [{"title": "Wool Runner", "price": None}]
     metrics, _ = score_extraction(predicted, TRUTH)
     assert metrics.price_comparable == 0
-    assert metrics.price_accuracy == 0.0  # nothing comparable
+    assert metrics.price_accuracy is None
 
 
 def test_alternative_field_names_are_understood():

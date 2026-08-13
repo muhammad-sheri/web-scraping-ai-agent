@@ -254,7 +254,8 @@ def evaluate_extraction(
         "recall": metrics["recall"],
         "precision": metrics["precision"],
         "hallucination_rate": metrics["hallucination_rate"],
-        "price_accuracy": metrics["price_accuracy"],
+        "price_accuracy": metrics["price_accuracy"],  # None when the page shows no prices
+        "invented_numbers_discarded": metrics.get("ungrounded_removed", 0),
         "f1": metrics["f1"],
         "missed_examples": metrics["missed_titles"][:5],
         "hallucinated_examples": metrics["hallucinated_titles"][:5],
