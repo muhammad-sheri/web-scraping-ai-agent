@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 
 import pandas as pd
 import streamlit as st
@@ -21,6 +22,14 @@ from scraper_agent.providers.openai_provider import OpenAIProvider
 from scraper_agent.shopify import ShopifyError, is_shopify_store
 
 st.set_page_config(page_title="Web Scraping AI Agent", page_icon="🕸️", layout="wide")
+
+# Hosted free tiers (Streamlit Community Cloud, Hugging Face Spaces, ...) have
+# no way to run Ollama, and a public link means anyone can spend an OpenAI key
+# left configured. Setting this secret restricts the live demo to the Shopify
+# catalogue mode, which needs no model, no key, and costs nothing regardless
+# of traffic. Local runs are unaffected — the flag defaults to off.
+PUBLIC_DEMO = os.getenv("PUBLIC_DEMO_MODE", "false").strip().lower() == "true"
+DEMO_COOLDOWN_S = 5  # courtesy throttle against accidental rapid-fire clicks
 
 EXAMPLES = {
     "Hacker News": (
@@ -38,87 +47,117 @@ EXAMPLES = {
 }
 
 st.title("🕸️ Web Scraping AI Agent")
-st.caption(
-    "Describe what you want in plain language — the agent fetches the page, "
-    "designs a schema for your request, and returns structured records."
-)
+if PUBLIC_DEMO:
+    st.caption(
+        "Live demo — the free, exact **Shopify catalogue** mode, no AI and no signup. "
+        "Clone [the repo](https://github.com/muhammad-sheri/web-scraping-ai-agent) to run "
+        "natural-language extraction locally with Ollama or your own OpenAI key."
+    )
+else:
+    st.caption(
+        "Describe what you want in plain language — the agent fetches the page, "
+        "designs a schema for your request, and returns structured records."
+    )
 
 settings = Settings.from_env()
 
-with st.sidebar:
-    st.header("Model")
-    provider_name = st.radio(
-        "Provider",
-        ["openai", "ollama"],
-        index=0 if settings.provider == "openai" else 1,
-        help="OpenAI is pay-per-token. Ollama runs locally and is free.",
-    )
+# Defaults used when the corresponding sidebar widgets are not rendered
+# (PUBLIC_DEMO forces the Shopify-only path, which needs none of the
+# LLM/fetching controls but does still build run_settings from max_chars/
+# max_chunks below).
+provider_name, api_key, model = "openai", "", ""
+max_chars, max_chunks = settings.max_chunk_chars, settings.max_chunks
 
-    if provider_name == "openai":
-        env_key = os.getenv("OPENAI_API_KEY", "")
-        api_key = st.text_input(
-            "OpenAI API key",
-            type="password",
-            value=env_key,
-            help="Loaded from .env when present. Billed per token — this is not the free ChatGPT tier.",
+if not PUBLIC_DEMO:
+    with st.sidebar:
+        st.header("Model")
+        provider_name = st.radio(
+            "Provider",
+            ["openai", "ollama"],
+            index=0 if settings.provider == "openai" else 1,
+            help="OpenAI is pay-per-token. Ollama runs locally and is free.",
         )
-        model = st.selectbox(
-            "Model",
-            ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o", "gpt-4.1"],
-            index=0,
-            help="gpt-4o-mini is the cheapest and handles most pages.",
-        )
-    else:
-        api_key = ""
-        installed = OllamaProvider(host=settings.ollama_host).available_models()
-        if installed:
-            model = st.selectbox("Local model", installed, index=0)
-        else:
-            model = st.text_input("Local model", value=settings.ollama_model)
-            st.warning(
-                "No local models found. Pull one first:\n\n"
-                "`ollama pull qwen2.5:7b`",
-                icon="⚠️",
+
+        if provider_name == "openai":
+            env_key = os.getenv("OPENAI_API_KEY", "")
+            api_key = st.text_input(
+                "OpenAI API key",
+                type="password",
+                value=env_key,
+                help="Loaded from .env when present. Billed per token — this is not the free ChatGPT tier.",
             )
+            model = st.selectbox(
+                "Model",
+                ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o", "gpt-4.1"],
+                index=0,
+                help="gpt-4o-mini is the cheapest and handles most pages.",
+            )
+        else:
+            api_key = ""
+            installed = OllamaProvider(host=settings.ollama_host).available_models()
+            if installed:
+                model = st.selectbox("Local model", installed, index=0)
+            else:
+                model = st.text_input("Local model", value=settings.ollama_model)
+                st.warning(
+                    "No local models found. Pull one first:\n\n"
+                    "`ollama pull qwen2.5:7b`",
+                    icon="⚠️",
+                )
 
-    st.header("Fetching")
-    render_mode = st.select_slider(
-        "Browser rendering",
-        options=["never", "auto", "always"],
-        value="auto",
-        help="'auto' launches a headless browser only when the page looks empty without JavaScript.",
-    )
-    respect_robots = st.toggle("Respect robots.txt", value=settings.respect_robots)
-    strip_boilerplate = st.toggle(
-        "Strip nav/header/footer",
-        value=True,
-        help="Turn off when the data you want lives in the site chrome.",
-    )
-
-    with st.expander("Advanced"):
-        max_chars = st.number_input(
-            "Characters per LLM call", 2_000, 60_000, settings.max_chunk_chars, step=1_000
+        st.header("Fetching")
+        render_mode = st.select_slider(
+            "Browser rendering",
+            options=["never", "auto", "always"],
+            value="auto",
+            help="'auto' launches a headless browser only when the page looks empty without JavaScript.",
         )
-        max_chunks = st.number_input("Max LLM calls per page", 1, 50, settings.max_chunks)
-        fields_raw = st.text_input(
-            "Fixed fields (optional)",
-            placeholder="title,price,url",
-            help="Set these to skip schema inference and force exact column names.",
+        respect_robots = st.toggle("Respect robots.txt", value=settings.respect_robots)
+        strip_boilerplate = st.toggle(
+            "Strip nav/header/footer",
+            value=True,
+            help="Turn off when the data you want lives in the site chrome.",
         )
 
-mode = st.radio(
-    "Mode",
-    ["Ask in plain language", "Full Shopify catalogue"],
-    horizontal=True,
-    help="Shopify stores publish their whole catalogue as JSON — exact prices, SKUs and "
-    "every size variant, with no AI involved and no cost.",
-)
-shopify_mode = mode == "Full Shopify catalogue"
+        with st.expander("Advanced"):
+            max_chars = st.number_input(
+                "Characters per LLM call", 2_000, 60_000, settings.max_chunk_chars, step=1_000
+            )
+            max_chunks = st.number_input("Max LLM calls per page", 1, 50, settings.max_chunks)
+            fields_raw = st.text_input(
+                "Fixed fields (optional)",
+                placeholder="title,price,url",
+                help="Set these to skip schema inference and force exact column names.",
+            )
+else:
+    with st.sidebar:
+        st.info(
+            "This public demo runs the free Shopify catalogue mode only, so there is "
+            "nothing here to configure — no model, no key.\n\n"
+            "Run it locally for natural-language extraction on any site: "
+            "[github.com/muhammad-sheri/web-scraping-ai-agent]"
+            "(https://github.com/muhammad-sheri/web-scraping-ai-agent)"
+        )
+
+if PUBLIC_DEMO:
+    shopify_mode = True
+else:
+    mode = st.radio(
+        "Mode",
+        ["Ask in plain language", "Full Shopify catalogue"],
+        horizontal=True,
+        help="Shopify stores publish their whole catalogue as JSON — exact prices, SKUs and "
+        "every size variant, with no AI involved and no cost.",
+    )
+    shopify_mode = mode == "Full Shopify catalogue"
 
 if shopify_mode:
     st.subheader("Which store?")
     url = st.text_input(
-        "Store URL", placeholder="https://www.allbirds.com", key="shop_url"
+        "Store URL",
+        value="https://www.allbirds.com" if PUBLIC_DEMO else "",
+        placeholder="https://www.allbirds.com",
+        key="shop_url",
     )
     prompt = ""
     limit_all = st.toggle("Fetch the entire catalogue", value=True)
@@ -127,7 +166,8 @@ if shopify_mode:
     )
     st.caption(
         "Works on any Shopify store. Returns one row per variant (each size/colour has "
-        "its own SKU, price and stock flag). Not a Shopify store? Use the other mode."
+        "its own SKU, price and stock flag)."
+        + ("" if PUBLIC_DEMO else " Not a Shopify store? Use the other mode.")
     )
 else:
     st.subheader("What should the agent scrape?")
@@ -154,7 +194,7 @@ else:
         int(st.number_input("Max pages", 1, 50, 5)) if follow_pages else 1
     )
 
-run = st.button("Scrape", type="primary", use_container_width=True)
+run = st.button("Scrape", type="primary", width="stretch")
 
 if run:
     if not url.strip():
@@ -163,6 +203,14 @@ if run:
     if not shopify_mode and not prompt.strip():
         st.error("Describe what you want extracted.")
         st.stop()
+
+    if PUBLIC_DEMO:
+        last_run = st.session_state.get("last_run_ts", 0.0)
+        elapsed = time.time() - last_run
+        if elapsed < DEMO_COOLDOWN_S:
+            st.warning(f"Please wait {DEMO_COOLDOWN_S - elapsed:.0f}s before scraping again.")
+            st.stop()
+        st.session_state["last_run_ts"] = time.time()
 
     run_settings = Settings(
         **{
@@ -193,8 +241,12 @@ if run:
             if not is_shopify_store(url, run_settings):
                 status.update(label="Not a Shopify store", state="error")
                 st.error(
-                    f"{url} has no public /products.json, so it is not a Shopify store. "
-                    "Switch to 'Ask in plain language' and describe what you want instead."
+                    f"{url} has no public /products.json, so it is not a Shopify store."
+                    + (
+                        ""
+                        if PUBLIC_DEMO
+                        else " Switch to 'Ask in plain language' and describe what you want instead."
+                    )
                 )
                 st.stop()
             result = agent.run_catalogue(url, max_products=max_products)
@@ -244,7 +296,7 @@ if run:
 
     if result.records:
         frame = pd.DataFrame(result.records, columns=columns_for(result.records))
-        st.dataframe(frame, use_container_width=True, hide_index=True)
+        st.dataframe(frame, width="stretch", hide_index=True)
 
         downloads = st.columns(2)
         downloads[0].download_button(
@@ -252,14 +304,14 @@ if run:
             json.dumps(result.records, indent=2, ensure_ascii=False),
             file_name="scraped.json",
             mime="application/json",
-            use_container_width=True,
+            width="stretch",
         )
         downloads[1].download_button(
             "Download CSV",
             frame.to_csv(index=False),
             file_name="scraped.csv",
             mime="text/csv",
-            use_container_width=True,
+            width="stretch",
         )
     else:
         st.warning(
