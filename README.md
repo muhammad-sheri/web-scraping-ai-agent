@@ -252,6 +252,32 @@ That last tool is the unusual one: you can ask Claude *"how accurate are you on 
 
 ---
 
+## Deploy a free live demo
+
+**Not on Vercel.** The Streamlit UI needs a persistent server process with a live WebSocket connection; Vercel is serverless functions with a 10-second timeout on the free plan. It's not that this app runs poorly there — it doesn't run at all without a full rewrite to a static frontend + API routes.
+
+**Not with Ollama either.** No free host gives you a persistent way to keep a 2–5GB model loaded, so the "free local AI" path that powers local development can't come along to a hosted demo.
+
+**[Streamlit Community Cloud](https://streamlit.io/cloud)** is the actual fit — it's built for exactly this, deploys straight from a GitHub repo, and is free:
+
+1. Push this repo to GitHub (already done if you're reading it there).
+2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app** → pick the repo, branch `main`, main file `app.py`.
+3. Under **Advanced settings → Secrets**, add:
+   ```toml
+   PUBLIC_DEMO_MODE = "true"
+   ```
+4. Deploy.
+
+`PUBLIC_DEMO_MODE` restricts the live app to the **Shopify catalogue mode only** — no LLM, no key, exact data, and genuinely free no matter how much traffic a public link gets. The natural-language mode is hidden rather than left half-working, because a public link with no key configured would otherwise dangle a broken "Ask in plain language" tab, and one with a key configured would let any visitor spend it. A short per-session cooldown discourages accidental rapid-fire clicking; it is a courtesy, not real abuse protection.
+
+Free tier: ~1GB RAM, sleeps after 12h with no traffic (reloads in a few seconds on the next visit), unlimited public apps.
+
+To later also enable the AI mode on the same deployment, add `OPENAI_API_KEY` as a secret and remove `PUBLIC_DEMO_MODE` — then think about cost and abuse first, since a public link with a live key means anyone who finds it can spend it.
+
+[Hugging Face Spaces](https://huggingface.co/spaces) is a solid alternative — same deploy shape, more generous free RAM (16GB vs ~1GB), sleeps after 48h instead of 12h.
+
+---
+
 ## Install
 
 ```bash
@@ -407,7 +433,7 @@ Everything is env-driven (see `.env.example`):
 pytest
 ```
 
-222 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, title matching and metric arithmetic against hand-computed fixtures, ground-truth scoping, the MCP tool surface via an in-memory client, and the full agent loop against a stubbed provider.
+231 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, title matching and metric arithmetic against hand-computed fixtures, ground-truth scoping, the MCP tool surface via an in-memory client, and the full agent loop against a stubbed provider.
 
 Several are regression tests for bugs found by running against real sites rather than by reading the code:
 
