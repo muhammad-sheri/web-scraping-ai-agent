@@ -17,6 +17,7 @@ from scraper_agent.clean import html_to_markdown
 from scraper_agent.config import Settings
 from scraper_agent.crawl import next_page_url
 from scraper_agent.fetch import FetchResult, fetch
+from scraper_agent.grounding import drop_ungrounded_numbers
 from scraper_agent.parsing import coerce_records, merge_records
 from scraper_agent.providers import LLMProvider, get_provider
 from scraper_agent.providers.base import estimate_cost_usd
@@ -58,6 +59,7 @@ class ScrapeResult:
     markdown_chars: int = 0
     chunks: int = 0
     pages: int = 1
+    ungrounded_removed: int = 0
     usage: dict[str, int] = field(default_factory=dict)
     cost_usd: float | None = None
     elapsed_s: float = 0.0
@@ -86,6 +88,7 @@ class ScrapeAgent:
         self.settings = settings or Settings.from_env()
         self._provider = provider
         self.on_progress = on_progress or (lambda _msg: None)
+        self._ungrounded = 0
 
     @property
     def provider(self) -> LLMProvider:
@@ -109,6 +112,7 @@ class ScrapeAgent:
     ) -> ScrapeResult:
         self._require_prompt(prompt)
         started = time.perf_counter()
+        self._ungrounded = 0
 
         self.on_progress(f"Fetching {url}")
         page = fetch(url, self.settings, render=render, respect_robots=respect_robots)
@@ -152,6 +156,7 @@ class ScrapeAgent:
         if max_pages < 1:
             raise ValueError("max_pages must be at least 1")
         started = time.perf_counter()
+        self._ungrounded = 0
 
         groups: list[list[dict[str, Any]]] = []
         plan: ExtractionPlan | None = None
@@ -313,6 +318,7 @@ class ScrapeAgent:
             markdown_chars=markdown_chars,
             chunks=chunks,
             pages=pages,
+            ungrounded_removed=self._ungrounded,
             usage={
                 "calls": usage.calls,
                 "prompt_tokens": usage.prompt_tokens,
@@ -356,7 +362,18 @@ class ScrapeAgent:
         payload = self.provider.complete_json(
             system=_EXTRACT_SYSTEM, user=user, schema=schema, schema_name="extraction"
         )
-        return coerce_records(payload, item_key="items")
+        records = coerce_records(payload, item_key="items")
+
+        if self.settings.verify_grounding:
+            # A number the page never showed did not come from the page.
+            records, removed = drop_ungrounded_numbers(records, chunk)
+            if removed:
+                self._ungrounded += removed
+                self.on_progress(
+                    f"Discarded {removed} invented number(s) absent from the page"
+                )
+
+        return records
 
     @staticmethod
     def _order_fields(record: dict[str, Any], plan: ExtractionPlan) -> dict[str, Any]:

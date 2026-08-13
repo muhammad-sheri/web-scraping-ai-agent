@@ -39,6 +39,10 @@ class Settings:
     respect_robots: bool = True
     politeness_delay: float = 0.5
 
+    # Null out numeric answers that do not appear in the page text. Catches
+    # fabricated prices, which small models produce readily.
+    verify_grounding: bool = True
+
     @classmethod
     def from_env(cls) -> "Settings":
         def _f(name: str, default: float) -> float:
@@ -62,4 +66,5 @@ class Settings:
             max_chunks=_i("MAX_CHUNKS", cls.max_chunks),
             respect_robots=os.getenv("RESPECT_ROBOTS", "true").lower() != "false",
             politeness_delay=_f("POLITENESS_DELAY", cls.politeness_delay),
+            verify_grounding=os.getenv("VERIFY_GROUNDING", "true").lower() != "false",
         )
