@@ -26,6 +26,7 @@ dependencies = [
 [project.optional-dependencies]
 ui = ["streamlit>=1.36", "pandas>=2.0"]
 browser = ["playwright>=1.44"]
+bot = ["curl_cffi>=0.7"]
 mcp = ["fastmcp>=3.0"]
 dev = ["pytest>=8.0", "fastmcp>=3.0"]
 

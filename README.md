@@ -43,8 +43,9 @@ Because raw HTML is ~85% markup. The agent runs a pipeline instead:
 ```
 URL
  │
- ├─ fetch ......... plain HTTP; escalates to headless Chromium only when the
- │                  page comes back as an empty JavaScript shell
+ ├─ fetch ......... plain HTTP; escalates to a browser TLS fingerprint if the
+ │                  site blocks it, then to headless Chromium if the HTML
+ │                  comes back as an empty JavaScript shell
  ├─ clean ......... HTML → markdown, keeping headings, lists, tables and link
  │                  targets, resolving every URL to absolute
  ├─ plan .......... one LLM call turns your sentence into a typed JSON Schema
@@ -156,6 +157,18 @@ Two things had to be verified before trusting it:
 
 A metric that improves when the model lies is a broken metric. Finding that was worth more than the fix.
 
+### Getting better accuracy
+
+In order of how much they actually move the numbers:
+
+1. **Use Shopify mode when the site is Shopify.** `--all-products` is exact — 100%, not 94%. It is not a model reading a page, it is the store's own database. Always prefer it.
+2. **Use a bigger model.** Measured, same page, same prompt: `qwen2.5:3b` → `qwen2.5:7b` took Allbirds from 89%/89% to 94%/97% recall/precision, for ~2× the time. `gpt-4o-mini` is stronger again and costs about a cent a page.
+3. **Name concrete fields.** `"every product with its name, price and link"` beats `"get me the data"` by a wide margin — the schema step has something specific to build from.
+4. **Keep to 3–4 fields** on small local models. Wide schemas are where sub-7B models fall apart.
+5. **Leave grounding on.** It is on by default and it is why fabricated numbers no longer reach output.
+
+And measure rather than guess: `scrape-agent-eval <any Shopify store>` gives you the current numbers for your own model and pages.
+
 **How the scoring works.** The `/products/<handle>` links in the page define which products were genuinely visible; the API then supplies their true titles and prices. Extracted records are matched to truth by normalised title (exact → contiguous containment → fuzzy ratio ≥ 0.85), each truth row consumed at most once. Metrics: **recall** (of the products on the page, how many were found), **precision**, **hallucination rate** (records matching no real product), and **price accuracy** (within 1%).
 
 ### The eval had a bug, and that is the point
@@ -165,6 +178,40 @@ The first version accepted a `--max-products` flag to keep slow local runs short
 Uncapped, the same model and page scored **94%**.
 
 An eval that is silently wrong is worse than no eval, so the option was removed rather than documented, and two regression tests now assert it cannot come back. This is the whole reason to build evals: the failure was in the measurement, and nothing but a measurement would have found it.
+
+---
+
+## Sites that block scrapers
+
+Many sites return 403 to `httpx` and 200 to Chrome for a page their own robots.txt allows. The block is not about permission — it keys off the TLS/HTTP2 handshake fingerprint, which every Python HTTP client shares and no browser does.
+
+[`curl_cffi`](https://github.com/lexiforest/curl_cffi) reproduces a real browser's handshake, so the fetcher escalates to it automatically:
+
+```
+1. httpx ............ fast, light, handles most of the web
+2. curl_cffi ........ when the response looks like a block (403/429/503)
+3. headless Chromium  when the HTML arrives as an empty JavaScript shell
+```
+
+Nothing escalates unless the page demands it, and **robots.txt is checked before any of it**.
+
+```bash
+pip install curl_cffi          # or: pip install -e ".[bot]"
+```
+
+Measured against real sites:
+
+| Site | plain `httpx` | with `curl_cffi` |
+|---|---:|---:|
+| indeed.com | 403 | **200** ✅ |
+| walmart.com | 200 | 200 |
+| g2.com | 403 | 403 ❌ |
+| zillow.com | 403 | 403 ❌ |
+| amazon.com | 404 | 404 ❌ |
+
+**It is not a universal bypass, and this README will not pretend otherwise.** TLS impersonation defeats fingerprint-based blocking (Indeed: a real win). It does not defeat JavaScript challenges, behavioural scoring or CAPTCHA, which is what G2, Zillow and Amazon use. For those, `--render always` sometimes helps; often nothing short of a commercial proxy network will.
+
+Control it with `--impersonate auto|always|never` (default `auto`) or `IMPERSONATION` in `.env`.
 
 ---
 
@@ -288,6 +335,7 @@ Useful flags:
 | `--max-chunks N` | Hard cap on LLM calls per page |
 | `--keep-boilerplate` | Keep nav/header/footer when your data lives there |
 | `--ignore-robots` | Skip the robots.txt check |
+| `--impersonate {auto,always,never}` | Retry blocked pages with a browser TLS fingerprint |
 | `--dump-markdown PATH` | Save exactly what the model was shown — the first thing to look at when results are wrong |
 
 Exit codes: `0` records found, `3` none found, `1` fetch/provider error, `2` bad usage.
@@ -346,6 +394,8 @@ Everything is env-driven (see `.env.example`):
 | `MAX_CHUNK_CHARS` | `12000` | Page characters per LLM call (~4 chars/token) |
 | `MAX_CHUNKS` | `12` | Ceiling on calls per page, so one huge page can't run up a bill |
 | `VERIFY_GROUNDING` | `true` | Null out numeric answers absent from the page text |
+| `IMPERSONATION` | `auto` | Retry blocked requests via curl_cffi (`auto`/`always`/`never`) |
+| `IMPERSONATE_PROFILE` | `chrome` | Browser profile curl_cffi imitates |
 | `RESPECT_ROBOTS` | `true` | Check robots.txt before fetching |
 | `POLITENESS_DELAY` | `0.5` | Seconds between requests |
 
@@ -357,7 +407,7 @@ Everything is env-driven (see `.env.example`):
 pytest
 ```
 
-205 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, title matching and metric arithmetic against hand-computed fixtures, ground-truth scoping, the MCP tool surface via an in-memory client, and the full agent loop against a stubbed provider.
+222 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, title matching and metric arithmetic against hand-computed fixtures, ground-truth scoping, the MCP tool surface via an in-memory client, and the full agent loop against a stubbed provider.
 
 Several are regression tests for bugs found by running against real sites rather than by reading the code:
 
@@ -372,7 +422,7 @@ Several are regression tests for bugs found by running against real sites rather
 
 ## Limitations
 
-- **Some big retailers block scrapers outright.** Amazon is the obvious one. That is a fetching problem every scraper shares, not something the AI layer can solve. Most stores — including essentially all Shopify ones — are fine.
+- **Some sites block scrapers outright.** Fingerprint-based blocks are handled (see [above](#sites-that-block-scrapers)), but JavaScript challenges and behavioural scoring — Amazon, G2, Zillow — are not, and no amount of AI changes that. Most of the web, including essentially all Shopify stores, is fine.
 - **The model can still be wrong.** It only ever sees text that was genuinely on the page and is told to return `null` rather than guess, but extraction from ambiguous layouts is not perfect. The point of the benchmark above is that you do not have to guess how wrong — run it on a store like yours.
 - **Small local models produce some junk rows.** On the Hacker News run above, `qwen2.5:3b` returned the site's own nav links as if they were stories. Filtering rows where every field but one is `null` clears most of it.
 - **Small local models struggle with wide schemas.** Under ~7B parameters, keep to a handful of fields.

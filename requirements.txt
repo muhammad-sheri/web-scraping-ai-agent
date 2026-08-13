@@ -11,6 +11,10 @@ pandas>=2.0
 # MCP server (scrape-agent-mcp)
 fastmcp>=3.0
 
+# Bot-protected sites: retries blocked requests with a real browser's TLS
+# fingerprint. Optional - the agent works without it, just fails on 403 walls.
+curl_cffi>=0.7
+
 # Tests
 pytest>=8.0
 
