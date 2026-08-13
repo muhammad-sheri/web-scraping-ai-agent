@@ -43,6 +43,12 @@ class Settings:
     # fabricated prices, which small models produce readily.
     verify_grounding: bool = True
 
+    # Sites that block plain Python clients on TLS fingerprint alone can be
+    # retried through curl_cffi with a real browser's handshake.
+    # auto = only after a blocking status | always | never
+    impersonation: str = "auto"
+    impersonate_profile: str = "chrome"
+
     @classmethod
     def from_env(cls) -> "Settings":
         def _f(name: str, default: float) -> float:
@@ -67,4 +73,6 @@ class Settings:
             respect_robots=os.getenv("RESPECT_ROBOTS", "true").lower() != "false",
             politeness_delay=_f("POLITENESS_DELAY", cls.politeness_delay),
             verify_grounding=os.getenv("VERIFY_GROUNDING", "true").lower() != "false",
+            impersonation=os.getenv("IMPERSONATION", cls.impersonation).lower(),
+            impersonate_profile=os.getenv("IMPERSONATE_PROFILE", cls.impersonate_profile),
         )

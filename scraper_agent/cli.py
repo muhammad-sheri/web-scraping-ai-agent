@@ -92,6 +92,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--ignore-robots", action="store_true", help="Skip the robots.txt check (use responsibly)"
     )
     parser.add_argument(
+        "--impersonate",
+        choices=["auto", "always", "never"],
+        help="Retry blocked pages with a real browser's TLS fingerprint via curl_cffi "
+        "(default auto: only after a 403/429/503)",
+    )
+    parser.add_argument(
         "--keep-boilerplate",
         action="store_true",
         help="Keep nav/header/footer (needed when the data lives in site chrome)",
@@ -111,6 +117,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         overrides["max_chunk_chars"] = args.max_chars
     if args.max_chunks:
         overrides["max_chunks"] = args.max_chunks
+    if args.impersonate:
+        overrides["impersonation"] = args.impersonate
     if overrides:
         settings = Settings(**{**settings.__dict__, **overrides})
 

@@ -1,8 +1,15 @@
-"""Page retrieval: a plain HTTP GET first, a real browser only when needed.
+"""Page retrieval, escalating only as far as each page actually requires.
 
-Rendering a page in Chromium costs seconds and a 400MB dependency, so the
-fetcher tries httpx first and escalates to Playwright only when the returned
-HTML looks like an empty JavaScript shell.
+Three rungs, cheapest first:
+
+1. plain httpx — fast, light, handles most of the web
+2. curl_cffi with a browser TLS fingerprint — when the response looks like a
+   bot block (403/429/503) rather than a real error
+3. headless Chromium — when the HTML arrives as an empty JavaScript shell
+
+Rendering costs seconds and a 400MB dependency, and impersonation costs a
+compiled dependency, so neither runs unless the page demands it. robots.txt is
+checked before any of them.
 """
 
 from __future__ import annotations
@@ -16,6 +23,8 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from scraper_agent.config import Settings
+from scraper_agent.http import HttpError
+from scraper_agent.http import get as http_get
 
 # Tags whose text is markup machinery, not page content. Used by the
 # "is this page empty?" heuristic below.
@@ -48,6 +57,7 @@ class FetchResult:
     html: str
     status_code: int
     rendered: bool
+    impersonated: bool = False
 
     @property
     def visible_text_length(self) -> int:
@@ -138,24 +148,22 @@ def fetch(
         return FetchResult(url, final_url, html, 200, rendered=True)
 
     try:
-        response = httpx.get(
+        response = http_get(
             url,
             timeout=settings.request_timeout,
-            follow_redirects=True,
-            headers={
-                "User-Agent": settings.user_agent,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-            },
+            user_agent=settings.user_agent,
+            impersonation=settings.impersonation,
+            profile=settings.impersonate_profile,
         )
-    except httpx.HTTPError as exc:
-        raise FetchError(f"Request to {url} failed: {exc}") from exc
+    except HttpError as exc:
+        raise FetchError(str(exc)) from exc
 
     if response.status_code >= 400:
         raise FetchError(f"{url} returned HTTP {response.status_code}")
 
     html = response.text
-    final_url = str(response.url)
+    final_url = response.url
+    impersonated = response.impersonated
 
     if render is None and looks_javascript_rendered(html):
         try:
@@ -163,13 +171,17 @@ def fetch(
         except FetchError:
             # Playwright unavailable or failed: the static HTML is still the
             # best answer we have, so return it rather than failing the run.
-            return FetchResult(url, final_url, html, response.status_code, False)
-        return FetchResult(url, rendered_url, rendered_html, response.status_code, True)
+            return FetchResult(url, final_url, html, response.status_code, False, impersonated)
+        return FetchResult(
+            url, rendered_url, rendered_html, response.status_code, True, impersonated
+        )
 
     if settings.politeness_delay:
         time.sleep(settings.politeness_delay)
 
-    return FetchResult(url, final_url, html, response.status_code, rendered=False)
+    return FetchResult(
+        url, final_url, html, response.status_code, rendered=False, impersonated=impersonated
+    )
 
 
 def _render_with_playwright(url: str, settings: Settings) -> tuple[str, str]:
