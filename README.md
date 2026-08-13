@@ -121,27 +121,40 @@ Most scraping agents ask you to take their accuracy on faith. This one measures 
 scrape-agent-eval https://www.allbirds.com/collections/mens --model ollama:qwen2.5:3b
 ```
 
-Measured on three real Shopify stores with `qwen2.5:3b` running locally, prompt held constant at *"every product on this page with its title and price"*:
+Three real Shopify stores, two local models, prompt held constant at *"every product on this page with its title and price"*:
 
-| Store | Model | On page | Found | Recall | Precision | Hallucinated | Price accuracy | Time |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| allbirds.com | `qwen2.5:3b` | 35 | 32 | 91% | 94% | 6% | 100% | 24s |
-| deathwishcoffee.com | `qwen2.5:3b` | 27 | 24 | 89% | 100% | 0% | 100% | 27s |
-| drinkolipop.com | `qwen2.5:3b` | 43 | 34 | 79% | 100% | **0%** | **0%** | 30s |
+| Store | Model | On page | Found | Recall | Precision | Hallucinated | Price accuracy | Invented numbers | Time |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| allbirds.com | `qwen2.5:3b` | 35 | 31 | 89% | 89% | 11% | 100% | 0 | 40s |
+| allbirds.com | `qwen2.5:7b` | 35 | 33 | **94%** | **97%** | 3% | 100% | 0 | 88s |
+| deathwishcoffee.com | `qwen2.5:3b` | 27 | 24 | 89% | 100% | 0% | 100% | 0 | 39s |
+| deathwishcoffee.com | `qwen2.5:7b` | 27 | 24 | 89% | 100% | 0% | 100% | 0 | 58s |
+| drinkolipop.com | `qwen2.5:3b` | 43 | 26 | 60%* | 100% | 0% | n/a | 34 → 0 | 29s |
+| drinkolipop.com | `qwen2.5:7b` | 43 | 26 | 60%* | 100% | 0% | n/a | 10 → 0 | 68s |
 
-Raw results: [`evals/results/`](evals/results/).
+Raw results: [`evals/results/`](evals/results/). Doubling model size bought ~5 points of recall and 8 of precision on Allbirds, for roughly 2× the time.
+
+\* Olipop's 43 products share only 27 distinct names — the same flavour ships as a single can, a 4-pack and a 12-pack. Title-based matching therefore tops out at 63%, and 60% is essentially that ceiling. A known limit of the eval, not a model failure.
 
 ### What the benchmark caught: silent price fabrication
 
-That 0% is the finding worth having. Olipop's collection page **displays no prices at all** — there is not a single `$nn.nn` anywhere in the page content the model receives. The store's real price is $35.99.
+Olipop's collection page **displays no prices at all** — not one `$nn.nn` in the content the model receives. The real price is $35.99. The model returned **$12.99 for all 34 products**: uniform, confident, invented, despite a prompt that explicitly says to return null when a value is absent.
 
-The model returned **$12.99 for every product on the page.**
+That is the failure that actually hurts. Not a crash, not an empty result — plausible wrong data that looks perfectly fine in a spreadsheet. **192 offline tests had no chance of catching it.** The eval found it on the third store.
 
-Not a misread — an invention, uniform across 34 records, despite a system prompt that explicitly says *"If a field has no value in the content, return null for it."* A plausible-looking number in every row, with nothing behind it.
+### And then it was fixed
 
-This is the failure mode that actually hurts in production: not a crash, not an empty result, but confident wrong data that looks fine in a spreadsheet. **192 offline tests never had a chance of finding it.** The eval found it on the third store.
+Instructions do not reliably stop a 3B model inventing values, so the fix is a check rather than a plea. Numbers are the one field type where grounding is decidable: every number in the source text is parsed once, and any numeric answer that is not among them is replaced with `null` and counted ([`grounding.py`](scraper_agent/grounding.py)). Text is deliberately exempt — models legitimately tidy titles, and substring-checking prose would delete correct data.
 
-That is the argument for evals in one example.
+The `Invented numbers` column above is that guard firing: 34 fabricated prices on Olipop, now zero reaching the output.
+
+Two things had to be verified before trusting it:
+
+**It does not damage good data.** Allbirds and Death Wish both display real prices — they stayed at 100% price accuracy with 0 removals. The guard is silent when the data is honest.
+
+**It does not lose products.** Recall on Olipop appears to drop from 79% to 60%, which looked alarming. It is the opposite. Without the guard the model emitted 34 rows containing only **26 unique titles**; the 8 duplicates survived deduplication solely because each copy carried a *different* invented price. Those duplicates were then matching separate same-named truth records, so **the hallucination was inflating the recall score**. With the guard: 26 rows, 26 unique titles, no product lost, and an honest number.
+
+A metric that improves when the model lies is a broken metric. Finding that was worth more than the fix.
 
 **How the scoring works.** The `/products/<handle>` links in the page define which products were genuinely visible; the API then supplies their true titles and prices. Extracted records are matched to truth by normalised title (exact → contiguous containment → fuzzy ratio ≥ 0.85), each truth row consumed at most once. Metrics: **recall** (of the products on the page, how many were found), **precision**, **hallucination rate** (records matching no real product), and **price accuracy** (within 1%).
 
@@ -332,6 +345,7 @@ Everything is env-driven (see `.env.example`):
 | `OLLAMA_MODEL` / `OLLAMA_HOST` | `llama3.2` / `localhost:11434` | Local backend |
 | `MAX_CHUNK_CHARS` | `12000` | Page characters per LLM call (~4 chars/token) |
 | `MAX_CHUNKS` | `12` | Ceiling on calls per page, so one huge page can't run up a bill |
+| `VERIFY_GROUNDING` | `true` | Null out numeric answers absent from the page text |
 | `RESPECT_ROBOTS` | `true` | Check robots.txt before fetching |
 | `POLITENESS_DELAY` | `0.5` | Seconds between requests |
 
@@ -343,7 +357,7 @@ Everything is env-driven (see `.env.example`):
 pytest
 ```
 
-192 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, title matching and metric arithmetic against hand-computed fixtures, ground-truth scoping, the MCP tool surface via an in-memory client, and the full agent loop against a stubbed provider.
+205 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, title matching and metric arithmetic against hand-computed fixtures, ground-truth scoping, the MCP tool surface via an in-memory client, and the full agent loop against a stubbed provider.
 
 Several are regression tests for bugs found by running against real sites rather than by reading the code:
 
@@ -352,6 +366,7 @@ Several are regression tests for bugs found by running against real sites rather
 - a next-link matcher that missed the very common `pagination__next` class, because `_` counts as a word character in `\b`
 - apostrophes splitting `Men's` into two tokens, so `Mens` failed to match exactly
 - **the eval capping its own ground truth and manufacturing false positives** (see above)
+- fabricated prices surviving into output, now blocked by the grounding check
 
 ---
 
