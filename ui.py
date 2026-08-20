@@ -33,7 +33,7 @@ LIGHT = {
     "primary": "#5B5BD6",
     "primary_hi": "#7C6BF0",
     "on_primary": "#FFFFFF",
-    "bg": "#F7F7FB",
+    "bg": "#F1F0FA",
     "surface": "#FFFFFF",
     "text": "#16181F",
     "muted": "#61667A",
@@ -43,6 +43,8 @@ LIGHT = {
     "tint_hi": "rgba(91, 91, 214, 0.13)",
     "shadow": "0 1px 2px rgba(16,18,31,.04), 0 8px 24px -12px rgba(16,18,31,.14)",
     "shadow_lg": "0 1px 2px rgba(16,18,31,.05), 0 18px 40px -20px rgba(16,18,31,.28)",
+    "glow_a": "rgba(91, 91, 214, 0.13)",
+    "glow_b": "rgba(124, 107, 240, 0.10)",
     "hero_from": "#1E1B4B",
     "hero_to": "#4338CA",
     "hero_text": "#EEF0FF",
@@ -56,8 +58,8 @@ DARK = {
     "primary": "#8B8BF5",
     "primary_hi": "#A5A0FF",
     "on_primary": "#0B0C12",
-    "bg": "#0B0C12",
-    "surface": "#14161F",
+    "bg": "#0A0A14",
+    "surface": "#14151F",
     "text": "#E6E8F0",
     "muted": "#9096AC",
     "border": "#242736",
@@ -66,6 +68,8 @@ DARK = {
     "tint_hi": "rgba(139, 139, 245, 0.16)",
     "shadow": "0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6)",
     "shadow_lg": "0 1px 2px rgba(0,0,0,.5), 0 18px 40px -20px rgba(0,0,0,.8)",
+    "glow_a": "rgba(120, 116, 255, 0.10)",
+    "glow_b": "rgba(88, 80, 200, 0.08)",
     "hero_from": "#171634",
     "hero_to": "#2E2A6E",
     "hero_text": "#EEF0FF",
@@ -120,16 +124,28 @@ def css(theme: str = "light") -> str:
 #MainMenu, footer {{ visibility: hidden; }}
 
 [data-testid="stMainBlockContainer"] {{
-  padding: 1.25rem 2.5rem 5rem;
+  padding: 3rem 2.5rem 5rem;
   max-width: 1500px;
 }}
 @media (max-width: 900px) {{
-  [data-testid="stMainBlockContainer"] {{ padding: 1rem 1rem 4rem; }}
+  [data-testid="stMainBlockContainer"] {{ padding: 2.75rem 1rem 4rem; }}
 }}
 
 html, body, [data-testid="stAppViewContainer"] {{
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
+}}
+
+/* The canvas. A flat near-white is what every default Streamlit app looks
+   like; this is a lavender-tinted ground lit from the top corners, which
+   makes the white cards read as objects sitting on a surface rather than
+   as slightly-different-white rectangles. */
+[data-testid="stAppViewContainer"] {{
+  background:
+    radial-gradient(1100px 520px at 12% -12%, {c["glow_a"]}, transparent 62%),
+    radial-gradient(900px 460px at 96% -6%, {c["glow_b"]}, transparent 58%),
+    var(--fx-bg);
+  background-attachment: fixed;
 }}
 
 /* ---- hero ------------------------------------------------------------- */
@@ -156,16 +172,6 @@ html, body, [data-testid="stAppViewContainer"] {{
   pointer-events: none;
 }}
 .fx-hero-inner {{ position: relative; z-index: 1; }}
-.fx-eyebrow {{
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: .68rem; font-weight: 500; letter-spacing: .18em; text-transform: uppercase;
-  color: {c["hero_muted"]};
-  display: flex; align-items: center; gap: .55rem; margin-bottom: .7rem;
-}}
-.fx-eyebrow .fx-dot {{
-  width: 7px; height: 7px; border-radius: 50%; background: #4ADE80;
-  box-shadow: 0 0 0 3px rgba(74,222,128,.22);
-}}
 .fx-hero h1 {{
   color: {c["hero_text"]};
   font-size: clamp(1.75rem, 3vw, 2.5rem);
@@ -177,27 +183,22 @@ html, body, [data-testid="stAppViewContainer"] {{
 }}
 .fx-hero p a {{ color: #C7D2FE; text-decoration: underline; text-underline-offset: 3px; }}
 .fx-hero-chips {{ display: flex; flex-wrap: wrap; gap: .45rem; margin-top: 1.15rem; }}
-.fx-hero-link {{
-  position: absolute; top: 1.15rem; right: 1.4rem; z-index: 2;
-  font-size: .78rem; font-weight: 500; color: {c["hero_text"]};
-  background: rgba(255,255,255,.11); border: 1px solid rgba(255,255,255,.18);
-  border-radius: 999px; padding: .32rem .75rem; text-decoration: none;
-}}
-.fx-hero-link:hover {{ background: rgba(255,255,255,.2); }}
-
 /* Once there are results, the hero stops being the point of the page. */
 .fx-hero.fx-compact {{ padding: 1.15rem 2.3rem 1.2rem; border-radius: 16px; margin-bottom: 1.1rem; }}
 .fx-hero.fx-compact h1 {{ font-size: 1.4rem; }}
 .fx-hero.fx-compact p {{ display: none; }}
 .fx-hero.fx-compact .fx-hero-chips {{ margin-top: .8rem; }}
 
-.fx-hero-chips span {{
+.fx-hero-chips span, .fx-hero-chips a {{
   font-size: .76rem; font-weight: 500; color: {c["hero_text"]};
   background: rgba(255,255,255,.11);
   border: 1px solid rgba(255,255,255,.16);
   border-radius: 999px; padding: .3rem .7rem;
   backdrop-filter: blur(6px);
+  text-decoration: none;
 }}
+.fx-hero-chips a {{ border-color: rgba(255,255,255,.34); }}
+.fx-hero-chips a:hover {{ background: rgba(255,255,255,.22); }}
 
 /* ---- section headers -------------------------------------------------- */
 .fx-section {{ display: flex; align-items: baseline; gap: .7rem; margin: 1.6rem 0 .8rem; }}
@@ -339,29 +340,36 @@ html, body, [data-testid="stAppViewContainer"] {{
 def hero(
     title: str,
     subtitle: str,
-    chips: list[str],
-    eyebrow: str = "",
+    chips: list,
     compact: bool = False,
 ) -> str:
-    """The page header. `subtitle` is trusted markup (it may carry one <a>).
+    """The page header.
 
-    `compact` shrinks it once results exist: the pitch has done its job by
-    then, and a 370px band above the data is just scrolling.
+    `chips` items are either a string or a (label, href) pair, which renders
+    as a link chip. The repo link lives there rather than pinned to the hero's
+    top-right corner: Streamlit Cloud draws its own Fork/GitHub toolbar in
+    exactly that spot, and the two overlapped.
+
+    `compact` shrinks the band once results exist — the pitch has done its job
+    by then, and 370px above the data is just scrolling.
     """
-    chip_html = "".join(f"<span>{escape(c)}</span>" for c in chips)
-    eyebrow_html = (
-        f'<div class="fx-eyebrow"><span class="fx-dot"></span>{escape(eyebrow)}</div>'
-        if eyebrow
-        else ""
-    )
+    parts = []
+    for chip in chips:
+        if isinstance(chip, (tuple, list)):
+            label, href = chip
+            parts.append(
+                f'<a href="{escape(str(href), quote=True)}" target="_blank" '
+                f'rel="noopener">{escape(str(label))}</a>'
+            )
+        else:
+            parts.append(f"<span>{escape(str(chip))}</span>")
+
     return (
         f'<div class="fx-hero{" fx-compact" if compact else ""}">'
-        f'<a class="fx-hero-link" href="{GITHUB_URL}" target="_blank" rel="noopener">GitHub ↗</a>'
         '<div class="fx-hero-inner">'
-        f"{eyebrow_html}"
         f"<h1>{escape(title)}</h1>"
-        f"<p>{subtitle}</p>"
-        f'<div class="fx-hero-chips">{chip_html}</div>'
+        f"<p>{escape(subtitle)}</p>"
+        f'<div class="fx-hero-chips">{"".join(parts)}</div>'
         "</div></div>"
     )
 

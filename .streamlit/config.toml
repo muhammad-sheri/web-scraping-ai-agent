@@ -33,7 +33,7 @@ metricValueFontWeight = 700
 # Indigo primary: distinct from Streamlit's default red, and it reads as a
 # tool rather than an alert.
 primaryColor = "#5B5BD6"
-backgroundColor = "#F7F7FB"
+backgroundColor = "#F1F0FA"
 secondaryBackgroundColor = "#FFFFFF"
 textColor = "#16181F"
 linkColor = "#4F46E5"
@@ -69,8 +69,8 @@ chartCategoricalColors = ["#5B5BD6", "#0E9F6E", "#D97706", "#7C3AED", "#2563EB",
 
 [theme.dark]
 primaryColor = "#8B8BF5"
-backgroundColor = "#0B0C12"
-secondaryBackgroundColor = "#14161F"
+backgroundColor = "#0A0A14"
+secondaryBackgroundColor = "#14151F"
 textColor = "#E6E8F0"
 linkColor = "#A5B4FC"
 borderColor = "#242736"
