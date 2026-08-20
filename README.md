@@ -91,7 +91,11 @@ scrape-agent https://www.allbirds.com --all-products --csv catalogue.csv
 | Cost | tokens per page | **zero** — no LLM at all |
 | Speed | ~25s per page | 291 products in ~2 seconds |
 
-Columns you get: `product_id, title, url, vendor, product_type, tags, published_at, description, variant_title, sku, price, compare_at_price, available, grams, image`.
+Columns you get — every field the store's own API publishes:
+
+`product_id, title, url, image, vendor, product_type, variant_title, option1, option2, option3, sku, variant_id, price, compare_at_price, discount_pct, available, grams, requires_shipping, taxable, position, options, tags, handle, image_count, published_at, created_at, updated_at, variant_updated_at, description`
+
+Two of those are derived rather than copied. `discount_pct` is the real markdown off `compare_at_price` — plenty of stores leave that field mirroring the live price instead of clearing it, so only a positive gap counts. `options` carries the store's *names* for its variant axes ("Color / Ring size"), which live at product level; without them `option1`/`option2` are anonymous values. The currency those prices are in is not in `/products.json` at all — `fetch_store_meta()` reads it from `/meta.json`, and returns `{}` rather than failing when a store does not serve that endpoint.
 
 Scope it to one collection, or cap it while testing:
 
@@ -468,7 +472,63 @@ History is append-only JSON Lines: small, greppable, diffable in git, and readab
 streamlit run app.py
 ```
 
-URL and prompt at the top, provider/model/rendering in the sidebar, results as a sortable table with JSON and CSV download buttons. Two expanders show the schema the agent designed and the exact cleaned page text it read — which is how you debug a bad extraction.
+One page, no sidebar: a scrape needs one required input, and hiding the model
+settings off-canvas made the page feel like a control panel for something that
+is really a search box. The URL goes in a card at the top, the model settings
+live in a popover next to the input they affect, and the public demo — which
+has nothing to configure — shows no settings affordance at all. Two expanders
+below the results show the schema the agent designed and the exact cleaned page
+text it read, which is how you debug a bad extraction.
+
+Catalogue results get a browser rather than a dump. A 385-product store is 5381
+variant rows, unreadable as a flat table, so the results section adds:
+
+- **Filters**, in a panel that is deliberately the loudest block on the page —
+  search (all terms must match), in stock / out of stock, a price range in the
+  store's currency, vendor and product-type facets, discounted-only, and a cap
+  on how many rows go on screen. The panel header names the filters currently
+  applied, and the stat tiles above the table report the filtered set with the
+  store total for context. Downloads always contain every filtered row, not
+  just the visible page.
+- **Collapsed variants** — one row per product showing its variant count, price
+  spread and stock ("3/7 in stock"), which expands to that product's variants
+  when you tick it. Streamlit has no nested rows, so row selection stands in
+  for the disclosure triangle.
+- **Typed columns** — `url` is a clickable link, `image` renders the photo,
+  prices are numbers formatted in the store's currency (string prices sort
+  lexically: "9" after "100"), stock flags are checkboxes, and every header is
+  a readable label rather than a raw key.
+- **Columns that earn their width** — a column that is empty, or zero all the
+  way down, is dropped: a jewellery store reports `grams=0` for everything, and
+  a store with no sale prices should not get a "Best off" column full of
+  Streamlit's grey `None` placeholders. The column picker still exposes every
+  field the API publishes.
+
+The look is a design system in two halves. `.streamlit/config.toml` carries the
+tokens — colours, fonts, radii, semantic tones — for a fully specified light
+*and* dark theme, so Streamlit's own components (widgets, dataframes, badges,
+alerts) come out on-theme instead of being fought with a stylesheet.
+[`ui.py`](ui.py) adds only what Streamlit has no component for: the hero band,
+the stat tiles, the filter panel shell, section headers and empty states, as
+pure functions returning HTML strings so they can be tested without a browser.
+Streamlit internals are touched only through `data-testid` attributes that are
+stable across releases, and every rule degrades to "plainer" rather than
+"broken" if one stops matching.
+
+The filter logic lives in `scraper_agent/catalogue_view.py` rather than in
+`app.py`, because it is the part with edge cases worth testing and Streamlit
+scripts are awkward to unit-test.
+
+**One bug worth writing down**, because it is the kind that only a browser
+finds. The Reset button first cleared the filters by deleting their
+`session_state` keys — the documented pattern — and `AppTest` confirmed it
+worked. In a real browser it did not: a button click ships every widget's
+current value to the server in the same message, and those values are
+reapplied as the widgets re-register during the rerun, so the search box still
+read "gold necklace" while the header chips said "No filters". The fix is to
+version the filter widget keys and bump the generation on reset, which hands
+Streamlit widgets it has never seen. Same lesson as the rest of this project:
+the offline suite was green throughout.
 
 ### Python
 
@@ -515,7 +575,7 @@ Everything is env-driven (see `.env.example`):
 pytest
 ```
 
-324 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, title matching and metric arithmetic against hand-computed fixtures, ground-truth scoping, the MCP tool surface via an in-memory client, the drift monitor's signals, baselines, detection rules, attribution and exit codes, and the full agent loop against a stubbed provider.
+431 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, title matching and metric arithmetic against hand-computed fixtures, ground-truth scoping, the MCP tool surface via an in-memory client, the drift monitor's signals, baselines, detection rules, attribution and exit codes, the catalogue filters and product grouping, the design system's HTML builders, the Streamlit layout itself via AppTest, and the full agent loop against a stubbed provider.
 
 Several are regression tests for bugs found by running against real sites rather than by reading the code:
 

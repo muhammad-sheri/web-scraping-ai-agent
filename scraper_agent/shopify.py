@@ -109,6 +109,118 @@ def _html_to_text(html: str) -> str:
     return visible_text(html or "")
 
 
+def _option_names(product: dict[str, Any]) -> str:
+    """The store's own names for its variant axes, e.g. "Color / Ring size".
+
+    The values live on each variant as option1/2/3, which say nothing on their
+    own; the names are only ever published here, at product level.
+    """
+    names = []
+    for option in product.get("options") or []:
+        if isinstance(option, dict):
+            name = option.get("name")
+        else:
+            name = option
+        if name and str(name).strip():
+            names.append(str(name).strip())
+    return " / ".join(names)
+
+
+def to_price(value: Any) -> float | None:
+    """Shopify sends prices as strings ("91.00"). Numeric or None, never raise."""
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        return float(str(value).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def discount_percent(price: Any, compare_at_price: Any) -> float | None:
+    """Percent off, or None when the variant is not actually discounted.
+
+    Plenty of stores leave `compare_at_price` equal to (or below) the live
+    price rather than clearing it, so only a positive gap counts as a discount.
+    """
+    now, was = to_price(price), to_price(compare_at_price)
+    if now is None or was is None or was <= 0 or now >= was:
+        return None
+    return round((was - now) / was * 100, 1)
+
+
+def fetch_store_meta(url: str, settings: Settings | None = None) -> dict[str, Any]:
+    """Store name, country and currency from `/meta.json`. Best effort.
+
+    Nothing else in the catalogue says what currency those prices are in, and
+    a store that does not serve this endpoint is still perfectly scrapable —
+    so every failure here returns {} rather than raising.
+    """
+    settings = settings or Settings.from_env()
+    parsed = urlparse(url if "://" in url else f"https://{url}")
+    try:
+        response = httpx.get(
+            f"{parsed.scheme}://{parsed.netloc}/meta.json",
+            timeout=settings.request_timeout,
+            follow_redirects=True,
+            headers={"User-Agent": settings.user_agent, "Accept": "application/json"},
+        )
+        if response.status_code != 200:
+            return {}
+        meta = response.json()
+    except (httpx.HTTPError, ValueError):
+        return {}
+    if not isinstance(meta, dict):
+        return {}
+    return {
+        key: meta.get(key)
+        for key in ("name", "currency", "country", "domain", "description")
+        if meta.get(key)
+    }
+
+
+def _variant_row(
+    base: dict[str, Any], variant: dict[str, Any], fallback_image: str | None
+) -> dict[str, Any]:
+    """Merge one variant into the product fields, in table-reading order."""
+    image = variant.get("featured_image")
+    if isinstance(image, dict):
+        image = image.get("src")
+    price = variant.get("price")
+    compare_at = variant.get("compare_at_price")
+
+    return {
+        "product_id": base["product_id"],
+        "title": base["title"],
+        "url": base["url"],
+        "image": image or fallback_image,
+        "vendor": base["vendor"],
+        "product_type": base["product_type"],
+        "variant_title": variant.get("title"),
+        "option1": variant.get("option1"),
+        "option2": variant.get("option2"),
+        "option3": variant.get("option3"),
+        "sku": variant.get("sku"),
+        "variant_id": variant.get("id"),
+        "price": price,
+        "compare_at_price": compare_at,
+        "discount_pct": discount_percent(price, compare_at),
+        "available": variant.get("available"),
+        "grams": variant.get("grams"),
+        "requires_shipping": variant.get("requires_shipping"),
+        "taxable": variant.get("taxable"),
+        "position": variant.get("position"),
+        "options": base["options"],
+        "tags": base["tags"],
+        "handle": base["handle"],
+        "image_count": base["image_count"],
+        "published_at": base["published_at"],
+        "created_at": base["created_at"],
+        "updated_at": base["updated_at"],
+        "variant_updated_at": variant.get("updated_at"),
+        "description": base["description"],
+    }
+
+
 def flatten_product(product: dict[str, Any], store_url: str) -> list[dict[str, Any]]:
     """One row per variant — a size or colour is its own SKU, price and stock."""
     root = f"{urlparse(store_url).scheme}://{urlparse(store_url).netloc}"
@@ -123,35 +235,20 @@ def flatten_product(product: dict[str, Any], store_url: str) -> list[dict[str, A
         "vendor": product.get("vendor"),
         "product_type": product.get("product_type"),
         "tags": _clean_tags(product.get("tags")),
+        "handle": handle or None,
+        "options": _option_names(product),
+        "image_count": len(images),
         "published_at": product.get("published_at"),
+        "created_at": product.get("created_at"),
+        "updated_at": product.get("updated_at"),
         "description": _html_to_text(product.get("body_html", "")),
     }
 
-    variants = product.get("variants") or []
+    variants = [v for v in (product.get("variants") or []) if isinstance(v, dict)]
     if not variants:
-        return [dict(base, variant_title=None, sku=None, price=None,
-                     compare_at_price=None, available=None, image=first_image)]
-
-    rows = []
-    for variant in variants:
-        if not isinstance(variant, dict):
-            continue
-        variant_image = variant.get("featured_image")
-        if isinstance(variant_image, dict):
-            variant_image = variant_image.get("src")
-        rows.append(
-            dict(
-                base,
-                variant_title=variant.get("title"),
-                sku=variant.get("sku"),
-                price=variant.get("price"),
-                compare_at_price=variant.get("compare_at_price"),
-                available=variant.get("available"),
-                grams=variant.get("grams"),
-                image=variant_image or first_image,
-            )
-        )
-    return rows
+        # Still worth a row: the product exists, it just has no purchasable SKU.
+        return [_variant_row(base, {}, first_image)]
+    return [_variant_row(base, variant, first_image) for variant in variants]
 
 
 def fetch_products(
