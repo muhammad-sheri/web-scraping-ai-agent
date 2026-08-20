@@ -10,6 +10,7 @@ import pytest
 from fastmcp import Client
 
 from scraper_agent import mcp_server
+from scraper_agent.shopify import StoreCheck
 
 EXPECTED_TOOLS = {"check_store", "scrape_page", "shopify_catalogue", "evaluate_extraction"}
 
@@ -54,23 +55,28 @@ def test_schemas_expose_the_expected_arguments():
 
 
 def test_check_store_recommends_the_catalogue_tool_for_shopify(monkeypatch):
-    monkeypatch.setattr(mcp_server, "is_shopify_store", lambda url: True)
+    monkeypatch.setattr(mcp_server, "probe_store",
+                        lambda url: StoreCheck(True, True, 200, "Catalogue API is readable."))
     result = call("check_store", {"url": "https://shop.com"})
     assert result["is_shopify"] is True
     assert result["recommended_tool"] == "shopify_catalogue"
 
 
 def test_check_store_falls_back_to_the_llm_path(monkeypatch):
-    monkeypatch.setattr(mcp_server, "is_shopify_store", lambda url: False)
+    monkeypatch.setattr(mcp_server, "probe_store",
+                        lambda url: StoreCheck(False, False, 404, "No Shopify fingerprints on the storefront."))
     result = call("check_store", {"url": "https://blog.com"})
     assert result["is_shopify"] is False
     assert result["recommended_tool"] == "scrape_page"
 
 
 def test_catalogue_refuses_a_non_shopify_url(monkeypatch):
-    monkeypatch.setattr(mcp_server, "is_shopify_store", lambda url: False)
+    monkeypatch.setattr(mcp_server, "probe_store",
+                        lambda url: StoreCheck(False, False, 404, "No Shopify fingerprints on the storefront."))
     result = call("shopify_catalogue", {"store_url": "https://blog.com"})
-    assert "error" in result and "Not a Shopify store" in result["error"]
+    assert "error" in result
+    assert result["is_shopify"] is False
+    assert "No Shopify fingerprints" in result["error"]
 
 
 # --- errors are returned, not raised --------------------------------------

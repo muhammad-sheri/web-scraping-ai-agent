@@ -1,24 +1,37 @@
+# Pinned with upper bounds on purpose.
+#
+# Streamlit Community Cloud reinstalls this file from scratch on every deploy,
+# so an unpinned list means a library release can break the live app with no
+# commit from anyone. The app uses Streamlit APIs that arrived in 1.61
+# (st.segmented_control, st.pills, the theme tokens in .streamlit/config.toml),
+# and pandas 3 changed enough dtype behaviour to matter to the results table.
+#
+# Lower bound = the oldest version that actually works.
+# Upper bound = the next major, so patch and minor updates still come through.
+# The exact versions below are the ones this was built and verified against.
+
 # Core agent
-httpx>=0.27
-beautifulsoup4>=4.12
-python-dotenv>=1.0
-openai>=1.40
+httpx>=0.27,<1.0            # verified 0.28.1
+beautifulsoup4>=4.12,<5.0   # verified 4.15.0
+python-dotenv>=1.0,<2.0     # verified 1.2.2
+openai>=1.40,<4.0           # verified 3.0.0
 
 # Streamlit UI (app.py)
-streamlit>=1.36
-pandas>=2.0
+streamlit>=1.61,<2.0        # 1.61 is the floor: segmented_control, pills, theme tokens
+pandas>=2.0,<4.0            # verified 3.0.5
 
 # MCP server (scrape-agent-mcp)
-fastmcp>=3.0
+fastmcp>=3.0,<4.0           # verified 3.4.7
 
 # Bot-protected sites: retries blocked requests with a real browser's TLS
-# fingerprint. Optional - the agent works without it, just fails on 403 walls.
-curl_cffi>=0.7
+# fingerprint. This is what makes gymshark.com and fashionnova.com readable,
+# so it is no longer optional in a deployment.
+curl_cffi>=0.7,<1.0         # verified 0.16.0
 
 # Tests
-pytest>=8.0
+pytest>=8.0,<10.0           # verified 9.1.1
 
 # Optional: JavaScript-rendered pages.
 # Install separately, it pulls a browser binary:
 #   pip install playwright && playwright install chromium
-# playwright>=1.44
+# playwright>=1.44,<2.0

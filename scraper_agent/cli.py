@@ -12,7 +12,7 @@ from scraper_agent.config import Settings
 from scraper_agent.fetch import FetchError
 from scraper_agent.output import to_table, write_csv, write_json
 from scraper_agent.providers import PROVIDERS, ProviderError, get_provider
-from scraper_agent.shopify import ShopifyError, is_shopify_store
+from scraper_agent.shopify import ShopifyError, check_store
 
 _RENDER_CHOICES = {"auto": None, "always": True, "never": False}
 
@@ -148,9 +148,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         if args.all_products:
-            if not is_shopify_store(args.url, settings):
+            check = check_store(args.url, settings)
+            if not check.catalogue_available:
                 print(
-                    f"error: {args.url} is not a Shopify store (no public /products.json).\n"
+                    f"error: {check.detail}\n"
                     "Scrape it with a prompt instead, adding --all-pages to follow pagination:\n"
                     f'  scrape-agent {args.url} "product name and price" --all-pages',
                     file=sys.stderr,
@@ -234,7 +235,7 @@ def _shopify_hint_applies(args: argparse.Namespace, result) -> bool:
     if not any(w in text for w in ("product", "price", "shop", "store", "item", "buy")):
         return False
     try:
-        return is_shopify_store(result.final_url)
+        return check_store(result.final_url).catalogue_available
     except Exception:
         return False
 

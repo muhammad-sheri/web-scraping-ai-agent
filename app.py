@@ -48,7 +48,7 @@ from scraper_agent.providers.openai_provider import OpenAIProvider
 from scraper_agent.shopify import (
     ShopifyError,
     fetch_store_meta,
-    is_shopify_store,
+    check_store,
     to_price,
 )
 
@@ -719,13 +719,18 @@ if run:
     currency = ""
     try:
         if shopify_mode:
-            if not is_shopify_store(url, run_settings):
-                status.update(label="Not a Shopify store", state="error")
+            check = check_store(url, run_settings)
+            if not check.catalogue_available:
+                # "Not Shopify" and "Shopify, but the API refused" are different
+                # answers and the user can act on only one of them.
+                label = ("Catalogue not readable" if check.is_shopify
+                         else "Not a Shopify store")
+                status.update(label=label, state="error")
                 st.error(
-                    f"{url} has no public /products.json, so it is not a Shopify store."
+                    f"{check.detail}"
                     + (
                         ""
-                        if PUBLIC_DEMO
+                        if PUBLIC_DEMO or check.is_shopify
                         else " Switch to 'Ask in plain language' and describe what you want instead."
                     ),
                     icon=":material/error:",
