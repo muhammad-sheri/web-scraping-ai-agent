@@ -33,18 +33,18 @@ LIGHT = {
     "primary": "#5B5BD6",
     "primary_hi": "#7C6BF0",
     "on_primary": "#FFFFFF",
-    "bg": "#F1F0FA",
+    "bg": "#E9E7F6",
     "surface": "#FFFFFF",
     "text": "#16181F",
-    "muted": "#61667A",
-    "border": "#E4E5EE",
-    "border_soft": "#EDEEF5",
+    "muted": "#565B70",
+    "border": "#D8D5EA",
+    "border_soft": "#DFDCEF",
     "tint": "rgba(91, 91, 214, 0.06)",
     "tint_hi": "rgba(91, 91, 214, 0.13)",
-    "shadow": "0 1px 2px rgba(16,18,31,.04), 0 8px 24px -12px rgba(16,18,31,.14)",
-    "shadow_lg": "0 1px 2px rgba(16,18,31,.05), 0 18px 40px -20px rgba(16,18,31,.28)",
-    "glow_a": "rgba(91, 91, 214, 0.13)",
-    "glow_b": "rgba(124, 107, 240, 0.10)",
+    "shadow": "0 1px 2px rgba(24,20,60,.06), 0 10px 28px -14px rgba(24,20,60,.26)",
+    "shadow_lg": "0 2px 4px rgba(24,20,60,.08), 0 22px 48px -20px rgba(24,20,60,.40)",
+    "glow_a": "rgba(91, 91, 214, 0.26)",
+    "glow_b": "rgba(150, 120, 245, 0.20)",
     "hero_from": "#1E1B4B",
     "hero_to": "#4338CA",
     "hero_text": "#EEF0FF",
@@ -58,18 +58,18 @@ DARK = {
     "primary": "#8B8BF5",
     "primary_hi": "#A5A0FF",
     "on_primary": "#0B0C12",
-    "bg": "#0A0A14",
-    "surface": "#14151F",
+    "bg": "#08080F",
+    "surface": "#15161F",
     "text": "#E6E8F0",
     "muted": "#9096AC",
-    "border": "#242736",
-    "border_soft": "#1C1F2B",
+    "border": "#272A3A",
+    "border_soft": "#1E2130",
     "tint": "rgba(139, 139, 245, 0.08)",
     "tint_hi": "rgba(139, 139, 245, 0.16)",
     "shadow": "0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6)",
     "shadow_lg": "0 1px 2px rgba(0,0,0,.5), 0 18px 40px -20px rgba(0,0,0,.8)",
-    "glow_a": "rgba(120, 116, 255, 0.10)",
-    "glow_b": "rgba(88, 80, 200, 0.08)",
+    "glow_a": "rgba(120, 116, 255, 0.16)",
+    "glow_b": "rgba(96, 84, 220, 0.13)",
     "hero_from": "#171634",
     "hero_to": "#2E2A6E",
     "hero_text": "#EEF0FF",
@@ -310,6 +310,13 @@ html, body, [data-testid="stAppViewContainer"] {{
   font-size: .78rem; font-weight: 600; letter-spacing: .01em; color: var(--fx-muted);
 }}
 [data-testid="stDataFrame"] {{ border-radius: 12px; overflow: hidden; }}
+
+/* Streamlit fills inputs with the page background. That reads as a hole in a
+   white card once the page is tinted, so inputs are pinned to the surface. */
+.stTextInput input, .stNumberInput input, .stTextArea textarea,
+[data-baseweb="select"] > div {{
+  background-color: var(--fx-surface) !important;
+}}
 [data-testid="stElementToolbar"] {{ backdrop-filter: blur(8px); }}
 
 /* ---- empty state ------------------------------------------------------ */
