@@ -33,12 +33,12 @@ metricValueFontWeight = 700
 # Indigo primary: distinct from Streamlit's default red, and it reads as a
 # tool rather than an alert.
 primaryColor = "#5B5BD6"
-backgroundColor = "#F1F0FA"
+backgroundColor = "#E9E7F6"
 secondaryBackgroundColor = "#FFFFFF"
 textColor = "#16181F"
 linkColor = "#4F46E5"
-borderColor = "#E4E5EE"
-dataframeBorderColor = "#E4E5EE"
+borderColor = "#D8D5EA"
+dataframeBorderColor = "#D8D5EA"
 dataframeHeaderBackgroundColor = "#F3F3F8"
 codeBackgroundColor = "#F3F3F8"
 codeTextColor = "#4338CA"
@@ -69,12 +69,12 @@ chartCategoricalColors = ["#5B5BD6", "#0E9F6E", "#D97706", "#7C3AED", "#2563EB",
 
 [theme.dark]
 primaryColor = "#8B8BF5"
-backgroundColor = "#0A0A14"
-secondaryBackgroundColor = "#14151F"
+backgroundColor = "#08080F"
+secondaryBackgroundColor = "#15161F"
 textColor = "#E6E8F0"
 linkColor = "#A5B4FC"
-borderColor = "#242736"
-dataframeBorderColor = "#242736"
+borderColor = "#272A3A"
+dataframeBorderColor = "#272A3A"
 dataframeHeaderBackgroundColor = "#1A1D28"
 codeBackgroundColor = "#1A1D28"
 codeTextColor = "#C7D2FE"
