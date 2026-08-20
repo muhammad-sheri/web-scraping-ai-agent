@@ -63,6 +63,20 @@ def test_unknown_theme_names_fall_back_to_light():
     assert ui.palette("") is ui.LIGHT
 
 
+def test_the_canvas_is_not_a_flat_default_white():
+    """A tinted, lit ground is the point — every default Streamlit app is grey."""
+    for theme in ("light", "dark"):
+        css = ui.css(theme)
+        assert '[data-testid="stAppViewContainer"]' in css
+        assert "radial-gradient" in css
+        assert ui.palette(theme)["glow_a"] in css
+
+
+def test_the_page_starts_below_the_hosted_toolbar():
+    """Streamlit Cloud floats Fork/GitHub over the top of the page."""
+    assert "padding: 3rem 2.5rem 5rem;" in ui.css("light")
+
+
 def test_css_hides_the_sidebar():
     """The redesign has no sidebar; the collapsed-control arrow must go too."""
     css = ui.css("light")
@@ -85,21 +99,39 @@ def test_css_has_no_leftover_format_placeholders():
 
 
 def test_hero_renders_its_parts():
-    html = ui.hero("Title", "Sub", ["one", "two"], eyebrow="Live")
+    html = ui.hero("Title", "Sub", ["one", "two"])
     assert "<h1>Title</h1>" in html
-    assert "Live" in html
     assert "<span>one</span>" in html and "<span>two</span>" in html
 
 
-def test_hero_subtitle_keeps_its_link_but_the_title_is_escaped():
-    """The subtitle is trusted markup; everything the caller names is not."""
-    html = ui.hero("A <b>&</b> B", '<a href="#x">repo</a>', [])
-    assert '<a href="#x">repo</a>' in html
+def test_hero_escapes_everything_the_caller_passes():
+    """No chip, title or subtitle is trusted markup any more."""
+    html = ui.hero("A <b>&</b> B", "<i>sub</i>", ["<script>x</script>"])
     assert "A &lt;b&gt;&amp;&lt;/b&gt; B" in html
+    assert "<i>" not in html
+    assert "<script>" not in html
 
 
-def test_hero_always_carries_the_repo_link():
-    assert ui.GITHUB_URL in ui.hero("t", "s", [])
+def test_a_chip_can_be_a_link():
+    """The repo link is a chip in the flow, not pinned to the corner.
+
+    Streamlit Cloud draws its own Fork/GitHub toolbar over the hero's
+    top-right, and the two overlapped there.
+    """
+    html = ui.hero("t", "s", [("View source ↗", ui.GITHUB_URL)])
+    assert f'href="{ui.GITHUB_URL}"' in html
+    assert 'target="_blank"' in html and 'rel="noopener"' in html
+    assert "View source" in html
+
+
+def test_link_chips_have_somewhere_to_be_styled():
+    assert ".fx-hero-chips a" in ui.css("light")
+
+
+def test_the_hero_no_longer_pins_anything_to_its_corner():
+    """Regression: the absolutely-positioned pill collided with Cloud's toolbar."""
+    assert "fx-hero-link" not in ui.css("light")
+    assert "fx-hero-link" not in ui.hero("t", "s", [("x", "https://e.com")])
 
 
 def test_compact_hero_is_opt_in():

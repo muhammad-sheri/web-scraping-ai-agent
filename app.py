@@ -152,11 +152,13 @@ if PUBLIC_DEMO:
         ui.hero(
             "Shopify catalogue scraper",
             "Point it at any Shopify store and get the whole catalogue as structured rows — "
-            "one per variant, with the store's own SKUs, prices and stock flags. "
-            f'<a href="{ui.GITHUB_URL}" target="_blank" rel="noopener">Clone the repo</a> '
-            "to run natural-language extraction on any site with Ollama or your own OpenAI key.",
-            ["Exact store data", "Every size & colour", "No AI, no signup", "Filter · group · export"],
-            eyebrow="Live demo",
+            "one per variant, with the store's own SKUs, prices and stock flags.",
+            [
+                "Exact store data",
+                "Every size & colour",
+                "Filter · group · export",
+                ("View source ↗", ui.GITHUB_URL),
+            ],
             compact=HAS_RESULT,
         )
     )
@@ -167,8 +169,12 @@ else:
             "Describe what you want in plain language — the agent fetches the page, designs a "
             "schema for your request and returns structured records. Shopify stores skip the "
             "model entirely and come straight from the store's own product API.",
-            ["Natural-language extraction", "Exact Shopify catalogues", "Multi-page crawling", "JSON & CSV"],
-            eyebrow="Local session",
+            [
+                "Natural-language extraction",
+                "Exact Shopify catalogues",
+                "Multi-page crawling",
+                ("View source ↗", ui.GITHUB_URL),
+            ],
             compact=HAS_RESULT,
         )
     )
