@@ -4,8 +4,8 @@ Run with:  streamlit run app.py
 
 Layout notes, because they are decisions rather than accidents:
 
-* No sidebar. A scrape has exactly one required input — a URL — and hiding
-  the model settings off-canvas made the page feel like a control panel for
+* No sidebar. A scrape has exactly one required input, a URL. Hiding the
+  model settings off-canvas made the page feel like a control panel for
   something that is really a search box. Settings now live in a popover next
   to the input they affect, and the public demo (which has nothing to
   configure) shows no settings affordance at all.
@@ -53,7 +53,7 @@ from scraper_agent.shopify import (
 )
 
 st.set_page_config(
-    page_title="Catalogue Scraper — Web Scraping AI Agent",
+    page_title="Catalogue Scraper",
     page_icon="🕸️",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -62,8 +62,8 @@ st.set_page_config(
 # Hosted free tiers (Streamlit Community Cloud, Hugging Face Spaces, ...) have
 # no way to run Ollama, and a public link means anyone can spend an OpenAI key
 # left configured. Setting this secret restricts the live demo to the Shopify
-# catalogue mode, which needs no model and no key. Local runs are unaffected —
-# the flag defaults to off.
+# catalogue mode, which needs no model and no key. Local runs are unaffected,
+# since the flag defaults to off.
 PUBLIC_DEMO = os.getenv("PUBLIC_DEMO_MODE", "false").strip().lower() == "true"
 DEMO_COOLDOWN_S = 5  # courtesy throttle against accidental rapid-fire clicks
 
@@ -144,15 +144,15 @@ def active_theme() -> str:
 
 st.html(ui.css(active_theme()))
 
-# Compact once there are results to look at — see ui.hero.
+# Compact once there are results to look at. See ui.hero.
 HAS_RESULT = st.session_state.get("result") is not None
 
 if PUBLIC_DEMO:
     st.html(
         ui.hero(
             "Shopify catalogue scraper",
-            "Point it at any Shopify store and get the whole catalogue as structured rows — "
-            "one per variant, with the store's own SKUs, prices and stock flags.",
+            "Point it at any Shopify store and get the whole catalogue as structured rows. "
+            "One row per variant, carrying the store's own SKUs, prices and stock flags.",
             [
                 "Exact store data",
                 "Every size & colour",
@@ -166,9 +166,9 @@ else:
     st.html(
         ui.hero(
             "Web Scraping AI Agent",
-            "Describe what you want in plain language — the agent fetches the page, designs a "
-            "schema for your request and returns structured records. Shopify stores skip the "
-            "model entirely and come straight from the store's own product API.",
+            "Describe what you want in plain language. The agent fetches the page, designs a "
+            "schema for your request and returns structured records. Shopify stores skip "
+            "the model entirely and come straight from the store's own product API.",
             [
                 "Natural-language extraction",
                 "Exact Shopify catalogues",
@@ -216,8 +216,8 @@ with st.container():
                         "OpenAI API key",
                         type="password",
                         value=os.getenv("OPENAI_API_KEY", ""),
-                        help="Loaded from .env when present. Billed per token — "
-                        "this is not the free ChatGPT tier.",
+                        help="Loaded from .env when present. Billed per token. This is not "
+                        "the free ChatGPT tier.",
                     )
                     model = st.selectbox(
                         "Model", ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o", "gpt-4.1"], index=0
@@ -265,7 +265,7 @@ with st.container():
             ["Ask in plain language", "Full Shopify catalogue"],
             default="Ask in plain language",
             label_visibility="collapsed",
-            help="Shopify stores publish their whole catalogue as JSON — exact prices, "
+            help="Shopify stores publish their whole catalogue as JSON: exact prices, "
             "SKUs and every size variant, with no AI involved.",
         )
         shopify_mode = mode == "Full Shopify catalogue"
@@ -293,11 +293,11 @@ with st.container():
                                          label_visibility="collapsed"))
             )
         st.caption(
-            "One row per variant — each size or colour has its own SKU, price and stock flag."
+            "One row per variant. Each size or colour has its own SKU, price and stock flag."
             + ("" if PUBLIC_DEMO else " Not a Shopify store? Switch to plain language above.")
         )
     else:
-        example = st.selectbox("Start from an example", ["—"] + list(EXAMPLES))
+        example = st.selectbox("Start from an example", ["None"] + list(EXAMPLES))
         default_url, default_prompt = EXAMPLES.get(example, ("", ""))
 
         col_url, col_prompt = st.columns([1, 2])
@@ -340,7 +340,7 @@ def display_frame(records: list[dict], columns: list[str] | None = None) -> pd.D
     Two bugs live here if this is skipped. Shopify sends prices as strings,
     which sort lexically ("9" after "100") and cannot be right-aligned or
     currency-formatted. And a column of floats-and-Nones is an object column,
-    which renders the word "None" in every empty cell instead of a blank —
+    which renders the word "None" in every empty cell instead of a blank.
     `to_numeric` turns those into NaN, which the grid draws as empty.
 
     The raw values stay in `records` for the download, so nothing is lost.
@@ -361,7 +361,7 @@ def default_columns(records: list[dict]) -> list[str]:
 def _has_content(value: object) -> bool:
     """Whether a cell says anything at all.
 
-    False is content — it is the answer "out of stock" — but a numeric zero in
+    False is content, because it is the answer "out of stock". A numeric zero in
     a column that is zero all the way down is not: Shopify reports grams=0 for
     every item in a jewellery store, and a column of zeroes is just width.
     """
@@ -377,8 +377,8 @@ def _has_content(value: object) -> bool:
 def useful_columns(records: list[dict], candidates: list[str]) -> list[str]:
     """Candidates that carry content somewhere in these rows.
 
-    An all-empty column is wasted width and, worse, a column of grey "None"s —
-    that is Streamlit's null-cell indicator, not a bug in the data. A store
+    An all-empty column is wasted width and, worse, a column of grey "None"s.
+    That is Streamlit's null-cell indicator, not a bug in the data. A store
     with no sale prices should simply not get a "Best off" column.
     """
     kept = [c for c in candidates if any(_has_content(r.get(c)) for r in records)]
@@ -433,7 +433,7 @@ def fkey(name: str) -> str:
 
     Reset cannot just delete these from session_state. A button click ships
     every widget's current value to the server in the same message, and those
-    values are reapplied as the widgets re-register during the rerun — so the
+    values are reapplied as the widgets re-register during the rerun, so the
     search box still read "gold necklace" while the filter logic saw an empty
     search and the header chips said "No filters".
 
@@ -453,7 +453,7 @@ def reset_filters() -> None:
 
 
 def render_filters(records: list[dict], currency: str) -> list[dict]:
-    """The filter panel — the loudest block on the page. Returns surviving rows."""
+    """The filter panel, the loudest block on the page. Returns surviving rows."""
     low, high = price_bounds(records)
     vendors, types = distinct(records, "vendor"), distinct(records, "product_type")
     has_price_range = high > low
@@ -475,7 +475,7 @@ def render_filters(records: list[dict], currency: str) -> list[dict]:
             placeholder="title, SKU, tag, colour…",
             key=fkey("flt_search"),
             icon=":material/search:",
-            help="All words must match — 'gold ring' finds rows containing both.",
+            help="All words must match, so 'gold ring' finds rows containing both.",
         )
         stock = top[1].segmented_control(
             "Availability", STOCK_CHOICES, default=ANY_STOCK, key=fkey("flt_stock"),
@@ -555,8 +555,8 @@ def _active_chips(low: float, high: float) -> list[str]:
     # catalogue range is actually filtering anything.
     price = state.get(fkey("flt_price"))
     if price and (float(price[0]) > low or float(price[1]) < high):
-        chips.append(f"{float(price[0]):,.0f}\u2013{float(price[1]):,.0f}")
-    return chips or ["No filters \u2014 showing everything"]
+        chips.append(f"{float(price[0]):,.0f} to {float(price[1]):,.0f}")
+    return chips or ["No filters, showing everything"]
 
 
 def render_catalogue_stats(visible: list[dict], total: list[dict], currency: str) -> None:
@@ -762,7 +762,7 @@ if run:
         st.exception(exc)
         st.stop()
 
-    status.update(label=f"Done — {result.count} record(s)", state="complete", expanded=False)
+    status.update(label=f"Found {result.count:,} record(s)", state="complete", expanded=False)
 
     st.session_state["result"] = result
     st.session_state["result_shopify"] = shopify_mode
@@ -790,8 +790,9 @@ if result is not None:
         st.html(ui.empty_state(
             "🕳️",
             "No records found",
-            "The page may be JavaScript-rendered — try 'always' rendering in Settings — or "
-            "the data may sit in the nav or footer, in which case turn off boilerplate stripping.",
+            "The page may be JavaScript-rendered, in which case try 'always' rendering in "
+            "Settings. Or the data may sit in the nav or footer, so turn off boilerplate "
+            "stripping and scrape again.",
         ))
     elif is_catalogue:
         visible = render_filters(records, currency)
@@ -833,7 +834,7 @@ if result is not None:
         st.html('<hr class="fx-rule">')
         render_downloads(
             visible or records,
-            f"{len(visible or records):,} row(s) — every row matching the filters, "
+            f"{len(visible or records):,} row(s). Every row matching the filters, "
             "not just the ones on screen.",
         )
     else:
@@ -847,8 +848,8 @@ if result is not None:
              "sub": "prompt + completion", "tone": "orange"},
             {"label": "Est. cost",
              "value": "local model" if st.session_state.get("result_local")
-             else (f"${cost:.4f}" if cost is not None else "—"),
-             "sub": result.model or "—", "tone": "green"},
+             else (f"${cost:.4f}" if cost is not None else "n/a"),
+             "sub": result.model or "no model", "tone": "green"},
         ]))
 
         frame = display_frame(records)

@@ -42,7 +42,7 @@ class Thresholds:
     #: Absolute fall in a truth-scored metric.
     accuracy_drop_warn: float = 0.07
     accuracy_drop_alert: float = 0.15
-    #: Relative move in cleaned page size — a redesign fingerprint.
+    #: Relative move in cleaned page size, which fingerprints a redesign.
     page_size_shift_warn: float = 0.50
 
 
@@ -156,7 +156,7 @@ def compare(
                     "record_count",
                     WARN,
                     f"records rose {change:.0%} (baseline {baseline.record_count:g}, now "
-                    f"{count}) — check for duplicate or junk rows",
+                    f"{count}), so check for duplicate or junk rows",
                     baseline.record_count,
                     count,
                 )
@@ -233,7 +233,7 @@ def compare(
                 )
             )
 
-    # 5. Page size. On its own this is weak, so it never alerts — but paired
+    # 5. Page size. On its own this is weak, so it never alerts, but paired
     #    with a record drop it tells you the site changed rather than the model.
     size_change = _relative_change(
         float(signals.get("markdown_chars", 0) or 0), baseline.markdown_chars
@@ -243,7 +243,7 @@ def compare(
             Finding(
                 "markdown_chars",
                 WARN,
-                f"cleaned page size moved {size_change:+.0%} — the page itself changed",
+                f"cleaned page size moved {size_change:+.0%}, so the page itself changed",
                 baseline.markdown_chars,
                 signals.get("markdown_chars"),
             )
@@ -283,7 +283,7 @@ def attribute(
     `results` is (page_url, is_canary, severity, had_baseline) per page.
 
     A canary is a page whose accuracy is measurable against the store's own
-    records. It is not a page anyone necessarily cares about — it is there
+    records. It is not a page anyone necessarily cares about. It is there
     because it runs through the same fetch/clean/plan/extract path. So if the
     canaries degraded, the fault is in that shared path and *every* page is
     suspect, including the ones that look fine. If only ordinary pages moved,
@@ -304,7 +304,7 @@ def attribute(
             "none",
             "low",
             f"Recorded {len(results)} page(s), but none has enough history to judge yet. "
-            f"Baselines form after {MIN_BASELINE_RUNS} runs — nothing was checked.",
+            f"Baselines form after {MIN_BASELINE_RUNS} runs, so nothing was checked.",
         )
 
     if not degraded:
@@ -323,7 +323,7 @@ def attribute(
             "high",
             "Canaries degraded alongside ordinary pages. The fault is in the shared "
             "extraction path (model, prompt, parsing or fetch), so treat every page "
-            "as suspect — including those that scored clean.",
+            "as suspect, including those that scored clean.",
             degraded_pages,
             degraded_canaries,
         )

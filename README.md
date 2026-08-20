@@ -1,6 +1,6 @@
 # 🕸️ Web Scraping AI Agent
 
-Describe what you want from a web page in plain English. The agent fetches the page, works out a schema for your request, and hands back structured records — JSON or CSV, no selectors, no XPath, no per-site code.
+Describe what you want from a web page in plain English. The agent fetches the page, works out a schema for your request, and hands back structured records as JSON or CSV. No selectors, no XPath, no per-site code.
 
 ```bash
 $ scrape-agent https://books.toscrape.com "every book with its title, price and stock availability" \
@@ -28,7 +28,7 @@ No selectors were written for that page. Point it at a different site with a dif
 
 Four things make it more than a demo:
 
-- **It knows when not to use AI.** For Shopify stores, `--all-products` pulls the **complete** catalogue — every variant, exact SKUs and prices — from the store's own API, with no LLM and no cost. → [E-commerce](#e-commerce-the-complete-catalogue-exactly)
+- **It knows when not to use AI.** For Shopify stores, `--all-products` pulls the **complete** catalogue (every variant, exact SKUs and prices) from the store's own API, with no LLM and no cost. → [E-commerce](#e-commerce-the-complete-catalogue-exactly)
 - **It measures its own accuracy.** Shopify stores double as a free answer key, so extraction quality is a number, not a claim. → [The numbers](#does-it-actually-work-here-are-the-numbers)
 - **It tells you when it starts getting worse.** Extraction pipelines fail silently; this one watches itself on a schedule and exits non-zero when it drifts. → [Drift monitoring](#catching-drift-before-your-data-does)
 - **It plugs into Claude.** An MCP server exposes all of it, including the accuracy check, as tools. → [MCP](#use-it-from-claude-mcp)
@@ -66,7 +66,7 @@ Measured on live pages, with `qwen2.5:3b` running locally on an M-series Mac:
 | books.toscrape.com | 51,274 chars | 7,539 chars (15%) | 2 | 20/20 books, 23s |
 | news.ycombinator.com | 34,791 chars | 17,125 chars (49%) | 4 | 24 stories + 1 junk row, 50s |
 
-Hacker News compresses less because it is built from nested layout tables and is almost entirely links. Those tables are detected and unwrapped rather than rendered as markdown grids — without that, the same page cleaned to 33,058 chars (95% of raw) and cost twice the tokens.
+Hacker News compresses less because it is built from nested layout tables and is almost entirely links. Those tables are detected and unwrapped rather than rendered as markdown grids. Without that, the same page cleaned to 33,058 chars (95% of raw) and cost twice the tokens.
 
 The schema step is what keeps results stable: every record has the same keys in the same order, so chunk 7 of a long page cannot invent a different shape from chunk 1, and CSV columns always line up.
 
@@ -74,7 +74,7 @@ The schema step is what keeps results stable: every record has the same keys in 
 
 ## E-commerce: the complete catalogue, exactly
 
-For online stores, AI extraction is usually the *wrong* tool — and the agent will tell you so.
+For online stores, AI extraction is usually the *wrong* tool, and the agent will tell you so.
 
 Every **Shopify** storefront publishes its own catalogue as JSON at `/products.json`. That is a public endpoint by design: it is what the store's own JavaScript reads. Going there beats reading the rendered page on every axis that matters.
 
@@ -88,14 +88,14 @@ scrape-agent https://www.allbirds.com --all-products --csv catalogue.csv
 | Prices | whatever the page displayed | exact, plus `compare_at_price` (the discount) |
 | Variants | usually missed | **every** size/colour, each with its own SKU and stock flag |
 | Accuracy | inferred, can misread | the store's own records |
-| Cost | tokens per page | **zero** — no LLM at all |
+| Cost | tokens per page | **zero**, no LLM at all |
 | Speed | ~25s per page | 291 products in ~2 seconds |
 
-Columns you get — every field the store's own API publishes:
+Columns you get, covering every field the store's own API publishes:
 
 `product_id, title, url, image, vendor, product_type, variant_title, option1, option2, option3, sku, variant_id, price, compare_at_price, discount_pct, available, grams, requires_shipping, taxable, position, options, tags, handle, image_count, published_at, created_at, updated_at, variant_updated_at, description`
 
-Two of those are derived rather than copied. `discount_pct` is the real markdown off `compare_at_price` — plenty of stores leave that field mirroring the live price instead of clearing it, so only a positive gap counts. `options` carries the store's *names* for its variant axes ("Color / Ring size"), which live at product level; without them `option1`/`option2` are anonymous values. The currency those prices are in is not in `/products.json` at all — `fetch_store_meta()` reads it from `/meta.json`, and returns `{}` rather than failing when a store does not serve that endpoint.
+Two of those are derived rather than copied. `discount_pct` is the real markdown off `compare_at_price`. Plenty of stores leave that field mirroring the live price instead of clearing it, so only a positive gap counts. `options` carries the store's *names* for its variant axes ("Color / Ring size"), which live at product level; without them `option1`/`option2` are anonymous values. The currency those prices are in is not in `/products.json` at all, so `fetch_store_meta()` reads it from `/meta.json`, and returns `{}` rather than failing when a store does not serve that endpoint.
 
 Scope it to one collection, or cap it while testing:
 
@@ -121,7 +121,7 @@ It follows `rel="next"`, "Next" links and arrow glyphs, staying on the same site
 
 ## Does it actually work? Here are the numbers
 
-Most scraping agents ask you to take their accuracy on faith. This one measures itself, because Shopify stores hand out a free answer key: the store publishes its own records at `/products.json`, and renders those same products as HTML. So the store supplies both the question and the correct answer — **no hand-labelling, and every Shopify store on the internet is a fresh test case.**
+Most scraping agents ask you to take their accuracy on faith. This one measures itself, because Shopify stores hand out a free answer key: the store publishes its own records at `/products.json`, and renders those same products as HTML. So the store supplies both the question and the correct answer. **No hand-labelling, and every Shopify store on the internet is a fresh test case.**
 
 ```bash
 scrape-agent-eval https://www.allbirds.com/collections/mens --model ollama:qwen2.5:3b
@@ -140,23 +140,23 @@ Three real Shopify stores, two local models, prompt held constant at *"every pro
 
 Raw results: [`evals/results/`](evals/results/). Doubling model size bought ~5 points of recall and 8 of precision on Allbirds, for roughly 2× the time.
 
-\* Olipop's 43 products share only 27 distinct names — the same flavour ships as a single can, a 4-pack and a 12-pack. Title-based matching therefore tops out at 63%, and 60% is essentially that ceiling. A known limit of the eval, not a model failure.
+\* Olipop's 43 products share only 27 distinct names, because the same flavour ships as a single can, a 4-pack and a 12-pack. Title-based matching therefore tops out at 63%, and 60% is essentially that ceiling. A known limit of the eval, not a model failure.
 
 ### What the benchmark caught: silent price fabrication
 
-Olipop's collection page **displays no prices at all** — not one `$nn.nn` in the content the model receives. The real price is $35.99. The model returned **$12.99 for all 34 products**: uniform, confident, invented, despite a prompt that explicitly says to return null when a value is absent.
+Olipop's collection page **displays no prices at all**, not one `$nn.nn` in the content the model receives. The real price is $35.99. The model returned **$12.99 for all 34 products**: uniform, confident, invented, despite a prompt that explicitly says to return null when a value is absent.
 
-That is the failure that actually hurts. Not a crash, not an empty result — plausible wrong data that looks perfectly fine in a spreadsheet. **192 offline tests had no chance of catching it.** The eval found it on the third store.
+That is the failure that actually hurts. Not a crash, not an empty result, but plausible wrong data that looks perfectly fine in a spreadsheet. **192 offline tests had no chance of catching it.** The eval found it on the third store.
 
 ### And then it was fixed
 
-Instructions do not reliably stop a 3B model inventing values, so the fix is a check rather than a plea. Numbers are the one field type where grounding is decidable: every number in the source text is parsed once, and any numeric answer that is not among them is replaced with `null` and counted ([`grounding.py`](scraper_agent/grounding.py)). Text is deliberately exempt — models legitimately tidy titles, and substring-checking prose would delete correct data.
+Instructions do not reliably stop a 3B model inventing values, so the fix is a check rather than a plea. Numbers are the one field type where grounding is decidable: every number in the source text is parsed once, and any numeric answer that is not among them is replaced with `null` and counted ([`grounding.py`](scraper_agent/grounding.py)). Text is deliberately exempt, because models legitimately tidy titles, and substring-checking prose would delete correct data.
 
 The `Invented numbers` column above is that guard firing: 34 fabricated prices on Olipop, now zero reaching the output.
 
 Two things had to be verified before trusting it:
 
-**It does not damage good data.** Allbirds and Death Wish both display real prices — they stayed at 100% price accuracy with 0 removals. The guard is silent when the data is honest.
+**It does not damage good data.** Allbirds and Death Wish both display real prices, and they stayed at 100% price accuracy with 0 removals. The guard is silent when the data is honest.
 
 **It does not lose products.** Recall on Olipop appears to drop from 79% to 60%, which looked alarming. It is the opposite. Without the guard the model emitted 34 rows containing only **26 unique titles**; the 8 duplicates survived deduplication solely because each copy carried a *different* invented price. Those duplicates were then matching separate same-named truth records, so **the hallucination was inflating the recall score**. With the guard: 26 rows, 26 unique titles, no product lost, and an honest number.
 
@@ -166,10 +166,10 @@ A metric that improves when the model lies is a broken metric. Finding that was 
 
 In order of how much they actually move the numbers:
 
-1. **Use Shopify mode when the site is Shopify.** `--all-products` is exact — 100%, not 94%. It is not a model reading a page, it is the store's own database. Always prefer it.
+1. **Use Shopify mode when the site is Shopify.** `--all-products` is exact: 100%, not 94%. It is not a model reading a page, it is the store's own database. Always prefer it.
 2. **Use a bigger model.** Measured, same page, same prompt: `qwen2.5:3b` → `qwen2.5:7b` took Allbirds from 89%/89% to 94%/97% recall/precision, for ~2× the time. `gpt-4o-mini` is stronger again and costs about a cent a page.
-3. **Name concrete fields.** `"every product with its name, price and link"` beats `"get me the data"` by a wide margin — the schema step has something specific to build from.
-4. **Keep to 3–4 fields** on small local models. Wide schemas are where sub-7B models fall apart.
+3. **Name concrete fields.** `"every product with its name, price and link"` beats `"get me the data"` by a wide margin, because the schema step has something specific to build from.
+4. **Keep to 3-4 fields** on small local models. Wide schemas are where sub-7B models fall apart.
 5. **Leave grounding on.** It is on by default and it is why fabricated numbers no longer reach output.
 
 And measure rather than guess: `scrape-agent-eval <any Shopify store>` gives you the current numbers for your own model and pages.
@@ -178,7 +178,7 @@ And measure rather than guess: `scrape-agent-eval <any Shopify store>` gives you
 
 ### The eval had a bug, and that is the point
 
-The first version accepted a `--max-products` flag to keep slow local runs short. It capped the *truth set* but the model still read the *whole page*, so every correct product past the cap scored as a false positive. It reported **59% precision** for output that was essentially right — the "hallucinations" turned out to be real Allbirds colourways.
+The first version accepted a `--max-products` flag to keep slow local runs short. It capped the *truth set* but the model still read the *whole page*, so every correct product past the cap scored as a false positive. It reported **59% precision** for output that was essentially right. The "hallucinations" turned out to be real Allbirds colourways.
 
 Uncapped, the same model and page scored **94%**.
 
@@ -190,12 +190,12 @@ An eval that is silently wrong is worse than no eval, so the option was removed 
 
 Extraction pipelines do not fail loudly. A site redesigns its markup, recall falls from 94% to 60%, and **nothing raises**: the scraper still returns rows, the rows are still well-formed, and the wrong numbers flow into pricing decisions and dashboards. Teams find out weeks later, because a human noticed a figure looked off.
 
-Catching that needs ground truth, and ground truth normally means hand labelling — which nobody does nightly. So `scrape-agent-monitor` runs **two detectors over one extraction pass**:
+Catching that needs ground truth, and ground truth normally means hand labelling, which nobody does nightly. So `scrape-agent-monitor` runs **two detectors over one extraction pass**:
 
 | Detector | Needs ground truth? | Catches |
 |---|---|---|
-| **Truth-scored canaries** | yes — Shopify pages supply their own | the **extractor** regressing: model, prompt, parsing or fetch |
-| **Signal drift** | no — compares each page to its own history | the **site** changing under you |
+| **Truth-scored canaries** | yes, Shopify pages supply their own | the **extractor** regressing: model, prompt, parsing or fetch |
+| **Signal drift** | no, it compares each page to its own history | the **site** changing under you |
 
 A canary does not have to be a page you care about. It is there because it runs through the same fetch → clean → plan → extract path as everything else, so it reports on that shared path. That is what makes the alert actionable rather than merely alarming:
 
@@ -204,7 +204,7 @@ scrape-agent-monitor init > watchlist.json
 scrape-agent-monitor run --config watchlist.json
 ```
 
-Three clean passes, then a config change that quietly truncated the page (`MAX_CHUNKS=1`) — a real run against real stores:
+Three clean passes, then a config change that quietly truncated the page (`MAX_CHUNKS=1`). A real run against real stores:
 
 ```
 FAIL  canary  https://www.deathwishcoffee.com/collections/all
@@ -218,13 +218,13 @@ FAIL          https://books.toscrape.com
 
 verdict: extractor (high confidence)
   Canaries degraded alongside ordinary pages. The fault is in the shared extraction
-  path (model, prompt, parsing or fetch), so treat every page as suspect —
+  path (model, prompt, parsing or fetch), so treat every page as suspect,
   including those that scored clean.
 ```
 
-It correctly blamed the extractor rather than the sites, because the canary fell too. Had the canaries held while one page dropped, the verdict would read `site` — and with no canary in the watchlist at all, it says so instead of guessing.
+It correctly blamed the extractor rather than the sites, because the canary fell too. Had the canaries held while one page dropped, the verdict would read `site`. With no canary in the watchlist at all, it says so instead of guessing.
 
-**Signals tracked per page, none of which need an answer key:** record count, schema shape, per-field null rate, numeric medians, cleaned page size. Shape breaks; content churns — so a catalogue gaining and losing products is not a finding, while a `price` column going from 0% to 70% null always is.
+**Signals tracked per page, none of which need an answer key:** record count, schema shape, per-field null rate, numeric medians, cleaned page size. Shape breaks; content churns. So a catalogue gaining and losing products is not a finding, while a `price` column going from 0% to 70% null always is.
 
 Baselines are the **median** of recent runs, never the previous one, so a single flaky fetch cannot become tomorrow's reference. The current run is excluded from its own baseline, or a large enough regression would partly hide from the check meant to catch it.
 
@@ -243,7 +243,7 @@ scrape-agent-monitor status --config watchlist.json               # recent histo
 
 ## Sites that block scrapers
 
-Many sites return 403 to `httpx` and 200 to Chrome for a page their own robots.txt allows. The block is not about permission — it keys off the TLS/HTTP2 handshake fingerprint, which every Python HTTP client shares and no browser does.
+Many sites return 403 to `httpx` and 200 to Chrome for a page their own robots.txt allows. The block is not about permission. It keys off the TLS/HTTP2 handshake fingerprint, which every Python HTTP client shares and no browser does.
 
 [`curl_cffi`](https://github.com/lexiforest/curl_cffi) reproduces a real browser's handshake, so the fetcher escalates to it automatically:
 
@@ -303,22 +303,22 @@ Then just ask. Four tools are exposed:
 |---|---|
 | `check_store` | Is this Shopify? Routes you to the right tool before any tokens are spent |
 | `scrape_page` | Natural-language extraction, optionally across paginated listings |
-| `shopify_catalogue` | The complete, exact catalogue — no LLM, no cost |
+| `shopify_catalogue` | The complete, exact catalogue, with no LLM and no cost |
 | `evaluate_extraction` | **Reports the agent's own measured accuracy on a store** |
 
 That last tool is the unusual one: you can ask Claude *"how accurate are you on this store?"* and get real measured numbers back, not a guess.
 
-**On context discipline:** a catalogue can run to thousands of rows, and dumping those into a client's context is the classic agent failure. Every tool caps its inline payload, sets a `truncated` flag, writes the full dataset to disk and returns the path — a readable sample plus a pointer, never a wall of JSON. No API key is needed either: the server defaults to local Ollama unless an OpenAI key is actually present.
+**On context discipline:** a catalogue can run to thousands of rows, and dumping those into a client's context is the classic agent failure. Every tool caps its inline payload, sets a `truncated` flag, writes the full dataset to disk and returns the path. A readable sample plus a pointer, never a wall of JSON. No API key is needed either: the server defaults to local Ollama unless an OpenAI key is actually present.
 
 ---
 
 ## Deploy a free live demo
 
-**Not on Vercel.** The Streamlit UI needs a persistent server process with a live WebSocket connection; Vercel is serverless functions with a 10-second timeout on the free plan. It's not that this app runs poorly there — it doesn't run at all without a full rewrite to a static frontend + API routes.
+**Not on Vercel.** The Streamlit UI needs a persistent server process with a live WebSocket connection; Vercel is serverless functions with a 10-second timeout on the free plan. It's not that this app runs poorly there; it doesn't run at all without a full rewrite to a static frontend + API routes.
 
-**Not with Ollama either.** No free host gives you a persistent way to keep a 2–5GB model loaded, so the "free local AI" path that powers local development can't come along to a hosted demo.
+**Not with Ollama either.** No free host gives you a persistent way to keep a 2-5GB model loaded, so the "free local AI" path that powers local development can't come along to a hosted demo.
 
-**[Streamlit Community Cloud](https://streamlit.io/cloud)** is the actual fit — it's built for exactly this, deploys straight from a GitHub repo, and is free:
+**[Streamlit Community Cloud](https://streamlit.io/cloud)** is the actual fit. It's built for exactly this, deploys straight from a GitHub repo, and is free:
 
 1. Push this repo to GitHub (already done if you're reading it there).
 2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app** → pick the repo, branch `main`, main file `app.py`.
@@ -328,13 +328,13 @@ That last tool is the unusual one: you can ask Claude *"how accurate are you on 
    ```
 4. Deploy.
 
-`PUBLIC_DEMO_MODE` restricts the live app to the **Shopify catalogue mode only** — no LLM, no key, exact data, and genuinely free no matter how much traffic a public link gets. The natural-language mode is hidden rather than left half-working, because a public link with no key configured would otherwise dangle a broken "Ask in plain language" tab, and one with a key configured would let any visitor spend it. A short per-session cooldown discourages accidental rapid-fire clicking; it is a courtesy, not real abuse protection.
+`PUBLIC_DEMO_MODE` restricts the live app to the **Shopify catalogue mode only**, with no LLM, no key, exact data, and no cost no matter how much traffic a public link gets. The natural-language mode is hidden rather than left half-working, because a public link with no key configured would otherwise dangle a broken "Ask in plain language" tab, and one with a key configured would let any visitor spend it. A short per-session cooldown discourages accidental rapid-fire clicking; it is a courtesy, not real abuse protection.
 
 Free tier: ~1GB RAM, sleeps after 12h with no traffic (reloads in a few seconds on the next visit), unlimited public apps.
 
-To later also enable the AI mode on the same deployment, add `OPENAI_API_KEY` as a secret and remove `PUBLIC_DEMO_MODE` — then think about cost and abuse first, since a public link with a live key means anyone who finds it can spend it.
+To later also enable the AI mode on the same deployment, add `OPENAI_API_KEY` as a secret and remove `PUBLIC_DEMO_MODE`, but think about cost and abuse first, since a public link with a live key means anyone who finds it can spend it.
 
-[Hugging Face Spaces](https://huggingface.co/spaces) is a solid alternative — same deploy shape, more generous free RAM (16GB vs ~1GB), sleeps after 48h instead of 12h.
+[Hugging Face Spaces](https://huggingface.co/spaces) is a solid alternative, with the same deploy shape, more generous free RAM (16GB vs ~1GB), sleeps after 48h instead of 12h.
 
 ---
 
@@ -360,7 +360,7 @@ pip install playwright && playwright install chromium
 
 ## Choosing a model
 
-**The OpenAI API is pay-as-you-go and is *not* the free ChatGPT tier.** A key with no credit returns a quota error. In practice this agent costs roughly **$0.001–0.01 per page** with `gpt-4o-mini`, because the cleaning step keeps the token count small — but it is cents, not free.
+**The OpenAI API is pay-as-you-go and is *not* the free ChatGPT tier.** A key with no credit returns a quota error. In practice this agent costs roughly **$0.001-0.01 per page** with `gpt-4o-mini`, because the cleaning step keeps the token count small. It is cents, not free.
 
 If you want genuinely free, run a local model with [Ollama](https://ollama.com):
 
@@ -373,7 +373,7 @@ scrape-agent example.com "product names and prices" --provider ollama --model qw
 
 | | `--provider openai` | `--provider ollama` |
 |---|---|---|
-| Cost | ~$0.001–0.01 per page | free |
+| Cost | ~$0.001-0.01 per page | free |
 | Needs a key | yes | no |
 | Data leaves your machine | yes | no |
 | Accuracy on messy pages | high | good, model-dependent |
@@ -422,7 +422,7 @@ Useful flags:
 | `--keep-boilerplate` | Keep nav/header/footer when your data lives there |
 | `--ignore-robots` | Skip the robots.txt check |
 | `--impersonate {auto,always,never}` | Retry blocked pages with a browser TLS fingerprint |
-| `--dump-markdown PATH` | Save exactly what the model was shown — the first thing to look at when results are wrong |
+| `--dump-markdown PATH` | Save exactly what the model was shown, the first thing to look at when results are wrong |
 
 Exit codes: `0` records found, `3` none found, `1` fetch/provider error, `2` bad usage.
 
@@ -449,7 +449,7 @@ scrape-agent-monitor run --config watchlist.json --fail-on warn --json report.js
 scrape-agent-monitor status --config watchlist.json
 ```
 
-A watchlist is a dozen lines of JSON. `canary` is optional — omit it and the monitor works out at run time whether the page can be scored:
+A watchlist is a dozen lines of JSON. `canary` is optional. Omit it and the monitor works out at run time whether the page can be scored:
 
 ```json
 {
@@ -475,37 +475,37 @@ streamlit run app.py
 One page, no sidebar: a scrape needs one required input, and hiding the model
 settings off-canvas made the page feel like a control panel for something that
 is really a search box. The URL goes in a card at the top, the model settings
-live in a popover next to the input they affect, and the public demo — which
-has nothing to configure — shows no settings affordance at all. Two expanders
+live in a popover next to the input they affect, and the public demo, which
+has nothing to configure, shows no settings affordance at all. Two expanders
 below the results show the schema the agent designed and the exact cleaned page
 text it read, which is how you debug a bad extraction.
 
 Catalogue results get a browser rather than a dump. A 385-product store is 5381
 variant rows, unreadable as a flat table, so the results section adds:
 
-- **Filters**, in a panel that is deliberately the loudest block on the page —
+- **Filters**, in a panel that is deliberately the loudest block on the page:
   search (all terms must match), in stock / out of stock, a price range in the
   store's currency, vendor and product-type facets, discounted-only, and a cap
   on how many rows go on screen. The panel header names the filters currently
   applied, and the stat tiles above the table report the filtered set with the
   store total for context. Downloads always contain every filtered row, not
   just the visible page.
-- **Collapsed variants** — one row per product showing its variant count, price
+- **Collapsed variants.** One row per product showing its variant count, price
   spread and stock ("3/7 in stock"), which expands to that product's variants
   when you tick it. Streamlit has no nested rows, so row selection stands in
   for the disclosure triangle.
-- **Typed columns** — `url` is a clickable link, `image` renders the photo,
+- **Typed columns.** `url` is a clickable link, `image` renders the photo,
   prices are numbers formatted in the store's currency (string prices sort
   lexically: "9" after "100"), stock flags are checkboxes, and every header is
   a readable label rather than a raw key.
-- **Columns that earn their width** — a column that is empty, or zero all the
+- **Columns that earn their width.** A column that is empty, or zero all the
   way down, is dropped: a jewellery store reports `grams=0` for everything, and
   a store with no sale prices should not get a "Best off" column full of
   Streamlit's grey `None` placeholders. The column picker still exposes every
   field the API publishes.
 
 The look is a design system in two halves. `.streamlit/config.toml` carries the
-tokens — colours, fonts, radii, semantic tones — for a fully specified light
+tokens (colours, fonts, radii, semantic tones) for a fully specified light
 *and* dark theme, so Streamlit's own components (widgets, dataframes, badges,
 alerts) come out on-theme instead of being fought with a stylesheet.
 [`ui.py`](ui.py) adds only what Streamlit has no component for: the hero band,
@@ -521,7 +521,7 @@ scripts are awkward to unit-test.
 
 **One bug worth writing down**, because it is the kind that only a browser
 finds. The Reset button first cleared the filters by deleting their
-`session_state` keys — the documented pattern — and `AppTest` confirmed it
+`session_state` keys, which is the documented pattern, and `AppTest` confirmed it
 worked. In a real browser it did not: a button click ships every widget's
 current value to the server in the same message, and those values are
 reapplied as the widgets re-register during the rerun, so the search box still
@@ -556,7 +556,7 @@ Everything is env-driven (see `.env.example`):
 | Variable | Default | Purpose |
 |---|---|---|
 | `SCRAPER_PROVIDER` | `openai` | Default backend |
-| `OPENAI_API_KEY` | — | Required for the OpenAI backend |
+| `OPENAI_API_KEY` | none | Required for the OpenAI backend |
 | `OPENAI_MODEL` | `gpt-4o-mini` | |
 | `OLLAMA_MODEL` / `OLLAMA_HOST` | `llama3.2` / `localhost:11434` | Local backend |
 | `MAX_CHUNK_CHARS` | `12000` | Page characters per LLM call (~4 chars/token) |
@@ -575,7 +575,7 @@ Everything is env-driven (see `.env.example`):
 pytest
 ```
 
-431 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, title matching and metric arithmetic against hand-computed fixtures, ground-truth scoping, the MCP tool surface via an in-memory client, the drift monitor's signals, baselines, detection rules, attribution and exit codes, the catalogue filters and product grouping, the design system's HTML builders, the Streamlit layout itself via AppTest, and the full agent loop against a stubbed provider.
+435 tests, all offline: no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, title matching and metric arithmetic against hand-computed fixtures, ground-truth scoping, the MCP tool surface via an in-memory client, the drift monitor's signals, baselines, detection rules, attribution and exit codes, the catalogue filters and product grouping, the design system's HTML builders, the Streamlit layout itself via AppTest, and the full agent loop against a stubbed provider.
 
 Several are regression tests for bugs found by running against real sites rather than by reading the code:
 
@@ -586,22 +586,22 @@ Several are regression tests for bugs found by running against real sites rather
 - **the eval capping its own ground truth and manufacturing false positives** (see above)
 - fabricated prices surviving into output, now blocked by the grounding check
 - a history file whose last line had been truncated by a killed process silently swallowing the *next* run too, so one interrupted write cost two runs and the second loss was invisible
-- **the monitor reporting "no page degraded" on a first run**, when no page had a baseline and nothing had in fact been checked — the same failure as a metric that improves when the model lies, wearing different clothes
+- **the monitor reporting "no page degraded" on a first run**, when no page had a baseline and nothing had in fact been checked. The same failure as a metric that improves when the model lies, wearing different clothes
 
 ---
 
 ## Limitations
 
-- **Some sites block scrapers outright.** Fingerprint-based blocks are handled (see [above](#sites-that-block-scrapers)), but JavaScript challenges and behavioural scoring — Amazon, G2, Zillow — are not, and no amount of AI changes that. Most of the web, including essentially all Shopify stores, is fine.
-- **The model can still be wrong.** It only ever sees text that was genuinely on the page and is told to return `null` rather than guess, but extraction from ambiguous layouts is not perfect. The point of the benchmark above is that you do not have to guess how wrong — run it on a store like yours.
+- **Some sites block scrapers outright.** Fingerprint-based blocks are handled (see [above](#sites-that-block-scrapers)), but JavaScript challenges and behavioural scoring (Amazon, G2, Zillow) are not, and no amount of AI changes that. Most of the web, including essentially all Shopify stores, is fine.
+- **The model can still be wrong.** It only ever sees text that was genuinely on the page and is told to return `null` rather than guess, but extraction from ambiguous layouts is not perfect. The point of the benchmark above is that you do not have to guess how wrong. Run it on a store like yours.
 - **Small local models produce some junk rows.** On the Hacker News run above, `qwen2.5:3b` returned the site's own nav links as if they were stories. Filtering rows where every field but one is `null` clears most of it.
 - **Small local models struggle with wide schemas.** Under ~7B parameters, keep to a handful of fields.
-- **The benchmark only covers Shopify stores**, since that is where free ground truth exists. Accuracy on a news site or job board is not measured by it — treat the numbers as evidence about product-listing extraction specifically, not a universal score.
+- **The benchmark only covers Shopify stores**, since that is where free ground truth exists. Accuracy on a news site or job board is not measured by it, so treat the numbers as evidence about product-listing extraction specifically, not a universal score.
 - **Login-walled and aggressively bot-protected pages** are out of scope.
 
 ## Responsible use
 
-`robots.txt` is respected by default and requests are rate-limited. `--ignore-robots` exists for pages you own or are authorised to scrape — check the site's terms and applicable law before using it, and don't collect personal data you have no basis to hold.
+`robots.txt` is respected by default and requests are rate-limited. `--ignore-robots` exists for pages you own or are authorised to scrape. Check the site's terms and applicable law before using it, and don't collect personal data you have no basis to hold.
 
 ## License
 

@@ -161,11 +161,11 @@ def test_filtering_then_grouping_reports_the_filtered_counts():
 @pytest.mark.parametrize(
     "low, high, currency, expected",
     [
-        (685.0, 1205.0, "USD", "$685.00 – $1,205.00"),
+        (685.0, 1205.0, "USD", "$685.00 to $1,205.00"),
         (685.0, 685.0, "USD", "$685.00"),
-        (10.0, 20.0, "GBP", "£10.00 – £20.00"),
-        (10.0, 20.0, "XYZ", "10.00 – 20.00"),
-        (None, None, "USD", "—"),
+        (10.0, 20.0, "GBP", "£10.00 to £20.00"),
+        (10.0, 20.0, "XYZ", "10.00 to 20.00"),
+        (None, None, "USD", "no prices"),
     ],
 )
 def test_price_label(low, high, currency, expected):

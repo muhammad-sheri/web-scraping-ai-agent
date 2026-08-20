@@ -1,4 +1,4 @@
-"""Ground-truth scoping — the detail the whole eval depends on."""
+"""Ground-truth scoping, the detail the whole eval depends on."""
 
 import httpx
 import pytest

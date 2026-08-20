@@ -2,10 +2,10 @@
 
 Three rungs, cheapest first:
 
-1. plain httpx — fast, light, handles most of the web
-2. curl_cffi with a browser TLS fingerprint — when the response looks like a
+1. plain httpx, which is fast, light and handles most of the web
+2. curl_cffi with a browser TLS fingerprint, when the response looks like a
    bot block (403/429/503) rather than a real error
-3. headless Chromium — when the HTML arrives as an empty JavaScript shell
+3. headless Chromium, when the HTML arrives as an empty JavaScript shell
 
 Rendering costs seconds and a 400MB dependency, and impersonation costs a
 compiled dependency, so neither runs unless the page demands it. robots.txt is

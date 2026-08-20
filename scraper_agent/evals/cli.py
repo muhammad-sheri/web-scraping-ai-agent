@@ -1,4 +1,4 @@
-"""`scrape-agent-eval` — measure extraction accuracy against a store's own data."""
+"""`scrape-agent-eval`: measure extraction accuracy against a store's own data."""
 
 from __future__ import annotations
 

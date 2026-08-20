@@ -1,4 +1,4 @@
-"""The monitoring pass, against a stubbed agent — no network, no model."""
+"""The monitoring pass, against a stubbed agent, with no network and no model."""
 
 from __future__ import annotations
 

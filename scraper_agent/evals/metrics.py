@@ -92,7 +92,7 @@ class ExtractionMetrics:
     def price_accuracy(self) -> float | None:
         """Among matched products, share priced correctly within tolerance.
 
-        None when nothing was comparable — a page with no prices, where the
+        None when nothing was comparable, such as a page with no prices, where the
         model correctly returned null, must not score the same as a page where
         it got every price wrong.
         """
@@ -145,7 +145,7 @@ def score_extraction(
     """Compare extracted records against ground-truth records.
 
     Both sides are dicts. Titles and prices are located by trying the common
-    key names, because the schema the agent invents is not fixed — it may call
+    key names, because the schema the agent invents is not fixed. It may call
     the field `title`, `name` or `product_name` depending on the prompt.
     """
     predicted_titles = [_first_present(r, TITLE_KEYS) for r in predicted]

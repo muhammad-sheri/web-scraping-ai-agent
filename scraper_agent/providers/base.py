@@ -29,7 +29,7 @@ class Usage:
         self.completion_tokens += completion
 
 
-# Approximate USD per 1M tokens (input, output). Vendor pricing changes — treat
+# Approximate USD per 1M tokens (input, output). Vendor pricing changes, so treat
 # these as an estimate for orientation, not a bill.
 PRICES: dict[str, tuple[float, float]] = {
     "gpt-4o-mini": (0.15, 0.60),

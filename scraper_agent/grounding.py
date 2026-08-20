@@ -2,7 +2,7 @@
 
 Found by the eval, not by the test suite: on a store whose listing page shows
 no prices at all, qwen2.5:3b returned $12.99 for all 34 products. Uniform,
-confident, and entirely invented — despite a system prompt that says to return
+confident, and entirely invented, despite a system prompt that says to return
 null when a value is absent. That is the dangerous failure: not a crash, but
 plausible wrong data that survives straight into a spreadsheet.
 
@@ -12,8 +12,8 @@ Numbers are the one field type where grounding is decidable: if the model says
 the source is parsed once, and any numeric answer that is not among them is
 replaced with null and counted.
 
-Text fields are deliberately left alone. Models legitimately tidy titles —
-trimming a colourway, fixing spacing — so substring-checking prose would delete
+Text fields are deliberately left alone. Models legitimately tidy titles,
+trimming a colourway or fixing spacing, so substring-checking prose would delete
 correct data. Numbers do not have that excuse.
 """
 
@@ -28,7 +28,7 @@ _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
 # ("1,299"), not a decimal comma ("35,99").
 _THOUSANDS = re.compile(r"(?<=\d),(?=\d{3}(?!\d))")
 
-#: Floats compare loosely — 35.99 parsed twice must agree.
+#: Floats compare loosely, since 35.99 parsed twice must agree.
 TOLERANCE = 0.005
 
 

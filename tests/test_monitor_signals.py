@@ -1,4 +1,4 @@
-"""Signals must describe shape, not content — and must not confuse 0 with missing."""
+"""Signals must describe shape, not content, and must not confuse 0 with missing."""
 
 from __future__ import annotations
 

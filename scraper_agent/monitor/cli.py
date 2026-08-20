@@ -1,4 +1,4 @@
-"""`scrape-agent-monitor` — catch extraction drift before your data does.
+"""`scrape-agent-monitor`: catch extraction drift before your data does.
 
 Exit codes are the product here as much as the output is: this is meant to run
 on a schedule or in CI, where nobody reads stdout until something returns
@@ -84,7 +84,7 @@ def render(report: MonitorReport) -> str:
     if verdict:
         lines.append("")
         if verdict.source == "none":
-            lines.append(f"verdict: clean — {verdict.explanation}")
+            lines.append(f"verdict: clean. {verdict.explanation}")
         else:
             lines.append(f"verdict: {verdict.source} ({verdict.confidence} confidence)")
             lines.append(f"  {verdict.explanation}")

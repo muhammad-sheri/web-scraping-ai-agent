@@ -43,7 +43,7 @@ def find_next_url(html: str, base_url: str) -> str | None:
         if _NEXT_TEXT.match(text) and not _PREV_HINT.search(text):
             return urljoin(base_url, anchor["href"].strip())
 
-    # 3. A link marked as "next" in class/id/aria-label — common in JS themes.
+    # 3. A link marked as "next" in class/id/aria-label, common in JS themes.
     for anchor in soup.find_all("a", href=True):
         if not _is_usable(anchor.get("href")):
             continue

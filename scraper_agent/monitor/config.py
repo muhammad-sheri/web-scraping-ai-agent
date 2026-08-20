@@ -1,6 +1,6 @@
 """The watchlist: which pages to monitor, and how.
 
-JSON rather than YAML so the package keeps its dependency list honest — a
+JSON rather than YAML so the package keeps its dependency list honest, since a
 watchlist is a dozen lines and does not justify pulling in a parser.
 
 `canary` is deliberately optional. Whether a page can be scored against

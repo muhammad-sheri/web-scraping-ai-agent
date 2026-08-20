@@ -117,7 +117,7 @@ def _explain(exc: Exception | None, model: str) -> str:
 
     if "invalid_api_key" in lowered or "incorrect api key" in lowered:
         return (
-            "OpenAI rejected the API key (401). Check OPENAI_API_KEY in .env — "
+            "OpenAI rejected the API key (401). Check OPENAI_API_KEY in .env. "
             "keys are revoked when leaked or rotated. "
             "Free alternative: --provider ollama runs a local model at no cost."
         )
