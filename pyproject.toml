@@ -34,6 +34,7 @@ dev = ["pytest>=8.0", "fastmcp>=3.0"]
 scrape-agent = "scraper_agent.cli:main"
 scrape-agent-eval = "scraper_agent.evals.cli:main"
 scrape-agent-mcp = "scraper_agent.mcp_server:main"
+scrape-agent-monitor = "scraper_agent.monitor.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/muhammad-sheri/web-scraping-ai-agent"

@@ -26,10 +26,11 @@ Sapiens: A Brief History of Humankind     54.23  In stock
 
 No selectors were written for that page. Point it at a different site with a different sentence and it works the same way.
 
-Three things make it more than a demo:
+Four things make it more than a demo:
 
 - **It knows when not to use AI.** For Shopify stores, `--all-products` pulls the **complete** catalogue — every variant, exact SKUs and prices — from the store's own API, with no LLM and no cost. → [E-commerce](#e-commerce-the-complete-catalogue-exactly)
 - **It measures its own accuracy.** Shopify stores double as a free answer key, so extraction quality is a number, not a claim. → [The numbers](#does-it-actually-work-here-are-the-numbers)
+- **It tells you when it starts getting worse.** Extraction pipelines fail silently; this one watches itself on a schedule and exits non-zero when it drifts. → [Drift monitoring](#catching-drift-before-your-data-does)
 - **It plugs into Claude.** An MCP server exposes all of it, including the accuracy check, as tools. → [MCP](#use-it-from-claude-mcp)
 
 Inspired by the [Web Scraping AI Agent](https://github.com/Shubhamsaboo/awesome-llm-apps/tree/main/starter_ai_agents/web_scraping_ai_agent) in [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-apps), rebuilt as a standalone package with its own extraction pipeline (no ScrapeGraphAI dependency), a CLI, a local-model option, an eval harness and a test suite.
@@ -178,6 +179,61 @@ The first version accepted a `--max-products` flag to keep slow local runs short
 Uncapped, the same model and page scored **94%**.
 
 An eval that is silently wrong is worse than no eval, so the option was removed rather than documented, and two regression tests now assert it cannot come back. This is the whole reason to build evals: the failure was in the measurement, and nothing but a measurement would have found it.
+
+---
+
+## Catching drift before your data does
+
+Extraction pipelines do not fail loudly. A site redesigns its markup, recall falls from 94% to 60%, and **nothing raises**: the scraper still returns rows, the rows are still well-formed, and the wrong numbers flow into pricing decisions and dashboards. Teams find out weeks later, because a human noticed a figure looked off.
+
+Catching that needs ground truth, and ground truth normally means hand labelling — which nobody does nightly. So `scrape-agent-monitor` runs **two detectors over one extraction pass**:
+
+| Detector | Needs ground truth? | Catches |
+|---|---|---|
+| **Truth-scored canaries** | yes — Shopify pages supply their own | the **extractor** regressing: model, prompt, parsing or fetch |
+| **Signal drift** | no — compares each page to its own history | the **site** changing under you |
+
+A canary does not have to be a page you care about. It is there because it runs through the same fetch → clean → plan → extract path as everything else, so it reports on that shared path. That is what makes the alert actionable rather than merely alarming:
+
+```bash
+scrape-agent-monitor init > watchlist.json
+scrape-agent-monitor run --config watchlist.json
+```
+
+Three clean passes, then a config change that quietly truncated the page (`MAX_CHUNKS=1`) — a real run against real stores:
+
+```
+FAIL  canary  https://www.deathwishcoffee.com/collections/all
+          ! records fell 87% (baseline 23, now 3)
+          ! 'price' empty in 100% of records (baseline 0%)
+          ! recall fell 88% (88% → 0%)
+          ! precision fell 100% (100% → 0%)
+FAIL          https://books.toscrape.com
+          ! records fell 90% (baseline 20, now 2)
+          ! 'price_excluding_tax' empty in 100% of records (baseline 0%)
+
+verdict: extractor (high confidence)
+  Canaries degraded alongside ordinary pages. The fault is in the shared extraction
+  path (model, prompt, parsing or fetch), so treat every page as suspect —
+  including those that scored clean.
+```
+
+It correctly blamed the extractor rather than the sites, because the canary fell too. Had the canaries held while one page dropped, the verdict would read `site` — and with no canary in the watchlist at all, it says so instead of guessing.
+
+**Signals tracked per page, none of which need an answer key:** record count, schema shape, per-field null rate, numeric medians, cleaned page size. Shape breaks; content churns — so a catalogue gaining and losing products is not a finding, while a `price` column going from 0% to 70% null always is.
+
+Baselines are the **median** of recent runs, never the previous one, so a single flaky fetch cannot become tomorrow's reference. The current run is excluded from its own baseline, or a large enough regression would partly hide from the check meant to catch it.
+
+Exit codes make it usable from cron or CI, where nobody reads a green run:
+
+```bash
+scrape-agent-monitor run --config watchlist.json --fail-on warn   # 0 clean · 1 warn · 2 alert
+scrape-agent-monitor status --config watchlist.json               # recent history, runs nothing
+```
+
+`canary` is optional in the watchlist. Whether a page can be scored against ground truth is a fact about the page, not a decision you should have to research, so leaving it unset means "find out at run time".
+
+**What it does not do:** measure a page whose ground truth does not exist. Nothing can. The canaries are how you find out whether the extractor is healthy on pages you *can* measure, so that a drop on the ones you cannot is attributable to the site rather than a mystery.
 
 ---
 
@@ -380,6 +436,32 @@ scrape-agent-eval https://store-a.com/collections/all https://store-b.com/collec
 
 The prompt is held constant across every run, because comparing models only means something if they answered the same question. Any Shopify collection page works as a benchmark.
 
+### Monitoring for drift
+
+```bash
+scrape-agent-monitor init > watchlist.json     # an example to edit
+scrape-agent-monitor run --config watchlist.json
+scrape-agent-monitor run --config watchlist.json --fail-on warn --json report.json
+scrape-agent-monitor status --config watchlist.json
+```
+
+A watchlist is a dozen lines of JSON. `canary` is optional — omit it and the monitor works out at run time whether the page can be scored:
+
+```json
+{
+  "prompt": "every product on this page with its title and price",
+  "provider": "ollama",
+  "model": "qwen2.5:7b",
+  "state_path": "~/.scrape-agent/monitor/history.jsonl",
+  "pages": [
+    {"url": "https://www.allbirds.com/collections/mens", "canary": true},
+    {"url": "https://your-store.com/collections/all"}
+  ]
+}
+```
+
+History is append-only JSON Lines: small, greppable, diffable in git, and readable by anything. See [Drift monitoring](#catching-drift-before-your-data-does) for what is measured and why.
+
 ### Streamlit app
 
 ```bash
@@ -433,7 +515,7 @@ Everything is env-driven (see `.env.example`):
 pytest
 ```
 
-231 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, title matching and metric arithmetic against hand-computed fixtures, ground-truth scoping, the MCP tool surface via an in-memory client, and the full agent loop against a stubbed provider.
+324 tests, all offline — no network, no API keys, no cost. They cover the HTML→markdown converter (including the layout-table handling that Hacker News-style pages need), chunking and overlap, tolerant JSON parsing of model output, schema generation under OpenAI strict mode, record merging, output writers, Shopify pagination and flattening against a mocked transport, next-link detection, title matching and metric arithmetic against hand-computed fixtures, ground-truth scoping, the MCP tool surface via an in-memory client, the drift monitor's signals, baselines, detection rules, attribution and exit codes, and the full agent loop against a stubbed provider.
 
 Several are regression tests for bugs found by running against real sites rather than by reading the code:
 
@@ -443,6 +525,8 @@ Several are regression tests for bugs found by running against real sites rather
 - apostrophes splitting `Men's` into two tokens, so `Mens` failed to match exactly
 - **the eval capping its own ground truth and manufacturing false positives** (see above)
 - fabricated prices surviving into output, now blocked by the grounding check
+- a history file whose last line had been truncated by a killed process silently swallowing the *next* run too, so one interrupted write cost two runs and the second loss was invisible
+- **the monitor reporting "no page degraded" on a first run**, when no page had a baseline and nothing had in fact been checked — the same failure as a metric that improves when the model lies, wearing different clothes
 
 ---
 
