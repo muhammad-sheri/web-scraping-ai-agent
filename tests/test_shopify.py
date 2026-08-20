@@ -8,7 +8,9 @@ import pytest
 from scraper_agent.config import Settings
 from scraper_agent.shopify import (
     ShopifyError,
+    discount_percent,
     fetch_products,
+    fetch_store_meta,
     flatten_product,
     is_shopify_store,
     looks_like_shopify,
@@ -204,3 +206,110 @@ def test_is_shopify_store_is_true_for_json_products(patch_httpx):
 def test_is_shopify_store_is_false_for_html(patch_httpx):
     patch_httpx(httpx.MockTransport(lambda r: httpx.Response(200, text="<html></html>")))
     assert is_shopify_store("https://plain-site.com", Settings()) is False
+
+
+# --- the extra fields the API publishes -----------------------------------
+
+RICH_PRODUCT = dict(
+    PRODUCT,
+    created_at="2026-07-23T13:56:33-07:00",
+    updated_at="2026-08-20T00:53:02-07:00",
+    options=[
+        {"name": "Color", "position": 1, "values": ["Grey"]},
+        {"name": "Size", "position": 2, "values": ["8", "9"]},
+    ],
+    variants=[
+        dict(PRODUCT["variants"][0], id=999, option1="Grey", option2="8",
+             position=1, requires_shipping=True, taxable=True,
+             updated_at="2026-08-19T10:00:00-07:00"),
+    ],
+)
+
+
+def test_option_names_come_from_the_product_not_the_variant():
+    """option1/option2 are bare values; only the product says what they mean."""
+    row = flatten_product(RICH_PRODUCT, "https://shop.com")[0]
+    assert row["options"] == "Color / Size"
+    assert (row["option1"], row["option2"], row["option3"]) == ("Grey", "8", None)
+
+
+def test_variant_identity_and_flags_are_carried():
+    row = flatten_product(RICH_PRODUCT, "https://shop.com")[0]
+    assert row["variant_id"] == 999
+    assert row["position"] == 1
+    assert row["requires_shipping"] is True
+    assert row["taxable"] is True
+    assert row["variant_updated_at"] == "2026-08-19T10:00:00-07:00"
+
+
+def test_product_timestamps_and_image_count_are_carried():
+    row = flatten_product(RICH_PRODUCT, "https://shop.com")[0]
+    assert row["created_at"] == "2026-07-23T13:56:33-07:00"
+    assert row["updated_at"] == "2026-08-20T00:53:02-07:00"
+    assert row["image_count"] == 1
+    assert row["handle"] == "mens-strider"
+
+
+def test_discount_percent_is_derived_from_the_compare_at_price():
+    row = flatten_product(PRODUCT, "https://shop.com")[0]
+    assert row["discount_pct"] == pytest.approx(30.0)  # 91 off a 130 list price
+
+
+@pytest.mark.parametrize(
+    "price, compare_at",
+    [
+        ("91.00", None),        # not on sale
+        ("91.00", "91.00"),     # stores that mirror the price instead of clearing it
+        ("91.00", "80.00"),     # compare_at below the live price is not a discount
+        ("91.00", "0"),
+        (None, "130.00"),
+        ("free", "130.00"),
+    ],
+)
+def test_no_discount_reported_without_a_real_markdown(price, compare_at):
+    assert discount_percent(price, compare_at) is None
+
+
+def test_options_survive_a_store_that_sends_plain_strings():
+    product = dict(RICH_PRODUCT, options=["Color", "Size"])
+    assert flatten_product(product, "https://shop.com")[0]["options"] == "Color / Size"
+
+
+def test_products_with_no_options_get_an_empty_string_not_a_crash():
+    assert flatten_product(dict(PRODUCT, options=None), "https://shop.com")[0]["options"] == ""
+
+
+def test_column_order_puts_the_commercial_fields_before_the_metadata():
+    """The table is read left to right; description last, identity first."""
+    keys = list(flatten_product(RICH_PRODUCT, "https://shop.com")[0])
+    assert keys[:4] == ["product_id", "title", "url", "image"]
+    assert keys[-1] == "description"
+    assert keys.index("price") < keys.index("published_at")
+
+
+# --- store metadata -------------------------------------------------------
+
+
+def test_store_meta_supplies_the_currency(patch_httpx):
+    patch_httpx(httpx.MockTransport(
+        lambda r: httpx.Response(200, json={"name": "David Von", "currency": "USD",
+                                            "country": "US", "id": 1})
+    ))
+    meta = fetch_store_meta("https://shop.com", Settings())
+    assert meta["currency"] == "USD"
+    assert meta["name"] == "David Von"
+    assert "id" not in meta  # only the fields the UI actually shows
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(404, text="Not Found"),
+        httpx.Response(200, text="<html>not json</html>"),
+        httpx.Response(200, json=["unexpected", "shape"]),
+    ],
+)
+def test_missing_store_meta_is_not_an_error(patch_httpx, response):
+    """A store without /meta.json is still perfectly scrapable."""
+    patch_httpx(httpx.MockTransport(lambda r: response))
+    assert fetch_store_meta("https://shop.com", Settings()) == {}
