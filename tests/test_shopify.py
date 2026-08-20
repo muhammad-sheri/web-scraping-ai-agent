@@ -8,6 +8,8 @@ import pytest
 from scraper_agent.config import Settings
 from scraper_agent.shopify import (
     ShopifyError,
+    catalogue_is_readable,
+    check_store,
     discount_percent,
     fetch_products,
     fetch_store_meta,
@@ -313,3 +315,114 @@ def test_missing_store_meta_is_not_an_error(patch_httpx, response):
     """A store without /meta.json is still perfectly scrapable."""
     patch_httpx(httpx.MockTransport(lambda r: response))
     assert fetch_store_meta("https://shop.com", Settings()) == {}
+
+
+# --- store detection ------------------------------------------------------
+# "Is this Shopify?" and "can we read its catalogue?" are two questions.
+# Collapsing them told users that gymshark.com and fashionnova.com were not
+# Shopify stores, which is simply false: one answers 403 to the product API
+# and the other 404, and both plainly run on Shopify.
+
+SHOPIFY_HTML = '<html><head><script src="https://cdn.shopify.com/s/x.js"></script></head></html>'
+
+
+def _routes(monkeypatch, handler):
+    """Stub scraper_agent.http.get, which is what shopify.py now goes through."""
+    from scraper_agent import http as http_module
+    from scraper_agent import shopify as shopify_module
+
+    def fake_get(url, **kwargs):
+        return handler(url, kwargs)
+
+    monkeypatch.setattr(shopify_module.http, "get", fake_get)
+    return http_module.Response
+
+
+def test_a_readable_catalogue_answers_both_questions_yes(monkeypatch):
+    def handler(url, kw):
+        from scraper_agent.http import Response as R
+        return R(text='{"products": [{"id": 1}]}', status_code=200, url=url)
+
+    _routes(monkeypatch, handler)
+    check = check_store("https://shop.com", Settings())
+    assert (check.is_shopify, check.catalogue_available) == (True, True)
+    assert check.status == 200
+
+
+def test_a_blocked_product_api_does_not_mean_not_shopify(monkeypatch):
+    """gymshark.com: 403 on /products.json, unmistakably Shopify in its HTML."""
+    def handler(url, kw):
+        from scraper_agent.http import Response as R
+        if "products.json" in url:
+            return R(text="blocked", status_code=403, url=url)
+        return R(text=SHOPIFY_HTML, status_code=200, url=url)
+
+    _routes(monkeypatch, handler)
+    check = check_store("https://gymshark.com", Settings())
+    assert check.is_shopify is True
+    assert check.catalogue_available is False
+    assert check.status == 403
+    assert "Shopify store" in check.detail and "cannot be read" in check.detail
+
+
+def test_a_404_product_api_does_not_mean_not_shopify_either(monkeypatch):
+    """fashionnova.com: 404 rather than 403, same wrong conclusion before."""
+    def handler(url, kw):
+        from scraper_agent.http import Response as R
+        if "products.json" in url:
+            return R(text="Not Found", status_code=404, url=url)
+        return R(text=SHOPIFY_HTML, status_code=200, url=url)
+
+    _routes(monkeypatch, handler)
+    assert check_store("https://fashionnova.com", Settings()).is_shopify is True
+
+
+def test_a_plain_site_is_correctly_rejected(monkeypatch):
+    def handler(url, kw):
+        from scraper_agent.http import Response as R
+        if "products.json" in url:
+            return R(text="Not Found", status_code=404, url=url)
+        return R(text="<html><body>a blog</body></html>", status_code=200, url=url)
+
+    _routes(monkeypatch, handler)
+    check = check_store("https://blog.com", Settings())
+    assert (check.is_shopify, check.catalogue_available) == (False, False)
+    assert "No Shopify fingerprints" in check.detail
+
+
+def test_an_unreachable_store_is_not_claimed_to_be_shopify(monkeypatch):
+    from scraper_agent.http import HttpError
+
+    def handler(url, kw):
+        raise HttpError("dns failure")
+
+    _routes(monkeypatch, handler)
+    check = check_store("https://nope.invalid", Settings())
+    assert (check.is_shopify, check.catalogue_available) == (False, False)
+    assert "could not be reached" in check.detail
+
+
+def test_json_that_is_not_a_catalogue_is_not_a_catalogue(monkeypatch):
+    """A 200 with the wrong shape must not be mistaken for products."""
+    def handler(url, kw):
+        from scraper_agent.http import Response as R
+        if "products.json" in url:
+            return R(text='{"errors": "unavailable"}', status_code=200, url=url)
+        return R(text=SHOPIFY_HTML, status_code=200, url=url)
+
+    _routes(monkeypatch, handler)
+    check = check_store("https://shop.com", Settings())
+    assert check.catalogue_available is False
+    assert check.is_shopify is True
+
+
+def test_helpers_read_the_two_fields(monkeypatch):
+    def handler(url, kw):
+        from scraper_agent.http import Response as R
+        if "products.json" in url:
+            return R(text="blocked", status_code=403, url=url)
+        return R(text=SHOPIFY_HTML, status_code=200, url=url)
+
+    _routes(monkeypatch, handler)
+    assert is_shopify_store("https://gymshark.com", Settings()) is True
+    assert catalogue_is_readable("https://gymshark.com", Settings()) is False

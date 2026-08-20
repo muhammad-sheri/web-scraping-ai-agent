@@ -16,12 +16,15 @@ from __future__ import annotations
 
 import re
 import time
+from dataclasses import dataclass
 from typing import Any, Callable, Iterable
 from urllib.parse import urljoin, urlparse
 
 import httpx
 
+from scraper_agent import http
 from scraper_agent.config import Settings
+from scraper_agent.http import HttpError
 
 MAX_PAGE_SIZE = 250
 
@@ -72,25 +75,84 @@ def products_endpoint(url: str) -> str:
     return f"{root}/products.json"
 
 
-def is_shopify_store(url: str, settings: Settings | None = None) -> bool:
-    """Probe the JSON endpoint directly. One cheap request, no guessing."""
+@dataclass(frozen=True)
+class StoreCheck:
+    """What we actually know about a store, which is two questions, not one.
+
+    "Is this Shopify?" and "can we read its catalogue?" are different, and
+    collapsing them was a real bug: gymshark.com serves 403 to the product
+    API and fashionnova.com serves 404, so both were reported as "not a
+    Shopify store" when both plainly are. That is a wrong answer shown to a
+    user, not a graceful degradation.
+    """
+
+    is_shopify: bool
+    catalogue_available: bool
+    status: int | None = None
+    detail: str = ""
+
+
+def check_store(url: str, settings: Settings | None = None) -> StoreCheck:
+    """Probe the product API, and fall back to the storefront HTML if it refuses.
+
+    The API probe goes through the escalating `http.get` rather than a bare
+    httpx call, so a storefront that only blocks vanilla Python clients is
+    retried with a browser TLS fingerprint before we conclude anything.
+    """
     settings = settings or Settings.from_env()
+    endpoint = products_endpoint(url)
+
+    status: int | None = None
     try:
-        response = httpx.get(
-            products_endpoint(url),
+        response = http.get(
+            endpoint,
             params={"limit": 1},
             timeout=settings.request_timeout,
-            follow_redirects=True,
-            headers={"User-Agent": settings.user_agent, "Accept": "application/json"},
+            user_agent=settings.user_agent,
+            headers={"Accept": "application/json"},
         )
-    except httpx.HTTPError:
-        return False
-    if response.status_code != 200:
-        return False
+        status = response.status_code
+        if response.ok:
+            payload = response.json()
+            if isinstance(payload, dict) and isinstance(payload.get("products"), list):
+                return StoreCheck(True, True, status, "Catalogue API is readable.")
+    except (HttpError, ValueError, AttributeError):
+        pass
+
+    # The API said no. That is not the same as "not Shopify", so ask the
+    # storefront itself: every Shopify theme leaves fingerprints in its HTML.
     try:
-        return isinstance(response.json().get("products"), list)
-    except (ValueError, AttributeError):
-        return False
+        page = http.get(
+            url if "://" in url else f"https://{url}",
+            timeout=settings.request_timeout,
+            user_agent=settings.user_agent,
+        )
+    except HttpError:
+        return StoreCheck(False, False, status, "The store could not be reached.")
+
+    if looks_like_shopify(page.text, getattr(page, "headers", None)):
+        return StoreCheck(
+            True,
+            False,
+            status,
+            f"This is a Shopify store, but {endpoint} answered "
+            f"{status or 'nothing'}, so the catalogue cannot be read.",
+        )
+    return StoreCheck(False, False, status, "No Shopify fingerprints on the storefront.")
+
+
+def is_shopify_store(url: str, settings: Settings | None = None) -> bool:
+    """Whether the store runs on Shopify at all.
+
+    Note this is not the same as "the catalogue can be read"; use
+    `check_store()` when you need to tell a user which of the two failed.
+    """
+    return check_store(url, settings).is_shopify
+
+
+def catalogue_is_readable(url: str, settings: Settings | None = None) -> bool:
+    """Whether `/products.json` will actually return the catalogue."""
+    return check_store(url, settings).catalogue_available
 
 
 def _clean_tags(tags: Any) -> str:
@@ -158,16 +220,16 @@ def fetch_store_meta(url: str, settings: Settings | None = None) -> dict[str, An
     settings = settings or Settings.from_env()
     parsed = urlparse(url if "://" in url else f"https://{url}")
     try:
-        response = httpx.get(
+        response = http.get(
             f"{parsed.scheme}://{parsed.netloc}/meta.json",
             timeout=settings.request_timeout,
-            follow_redirects=True,
-            headers={"User-Agent": settings.user_agent, "Accept": "application/json"},
+            user_agent=settings.user_agent,
+            headers={"Accept": "application/json"},
         )
-        if response.status_code != 200:
+        if not response.ok:
             return {}
         meta = response.json()
-    except (httpx.HTTPError, ValueError):
+    except (HttpError, ValueError):
         return {}
     if not isinstance(meta, dict):
         return {}
@@ -275,14 +337,16 @@ def fetch_products(
 
     while True:
         try:
-            response = httpx.get(
+            # Same escalating client as check_store, or a store that only
+            # blocks vanilla Python would pass the probe and then fail here.
+            response = http.get(
                 endpoint,
                 params={"limit": page_size, "page": page},
                 timeout=settings.request_timeout,
-                follow_redirects=True,
-                headers={"User-Agent": settings.user_agent, "Accept": "application/json"},
+                user_agent=settings.user_agent,
+                headers={"Accept": "application/json"},
             )
-        except httpx.HTTPError as exc:
+        except HttpError as exc:
             raise ShopifyError(f"Could not read {endpoint}: {exc}") from exc
 
         if response.status_code == 404:

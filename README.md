@@ -592,7 +592,7 @@ Several are regression tests for bugs found by running against real sites rather
 
 ## Limitations
 
-- **Some sites block scrapers outright.** Fingerprint-based blocks are handled (see [above](#sites-that-block-scrapers)), but JavaScript challenges and behavioural scoring (Amazon, G2, Zillow) are not, and no amount of AI changes that. Most of the web, including essentially all Shopify stores, is fine.
+- **Some sites block scrapers outright.** Fingerprint-based blocks are handled (see [above](#sites-that-block-scrapers)), but JavaScript challenges and behavioural scoring (Amazon, G2, Zillow) are not, and no amount of AI changes that. Most of the web, including essentially all Shopify stores, is fine: gymshark.com and fashionnova.com both block a plain Python client on `/products.json` and both read correctly through the escalating client.
 - **The model can still be wrong.** It only ever sees text that was genuinely on the page and is told to return `null` rather than guess, but extraction from ambiguous layouts is not perfect. The point of the benchmark above is that you do not have to guess how wrong. Run it on a store like yours.
 - **Small local models produce some junk rows.** On the Hacker News run above, `qwen2.5:3b` returned the site's own nav links as if they were stories. Filtering rows where every field but one is `null` clears most of it.
 - **Small local models struggle with wide schemas.** Under ~7B parameters, keep to a handful of fields.

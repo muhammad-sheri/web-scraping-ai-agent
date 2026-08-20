@@ -29,7 +29,7 @@ from scraper_agent.agent import ScrapeAgent
 from scraper_agent.config import Settings
 from scraper_agent.fetch import FetchError
 from scraper_agent.providers import ProviderError, get_provider
-from scraper_agent.shopify import ShopifyError, is_shopify_store
+from scraper_agent.shopify import ShopifyError, check_store as probe_store
 
 mcp = FastMCP(
     "web-scraping-ai-agent",
@@ -96,7 +96,8 @@ def check_store(url: str) -> dict[str, Any]:
     read by a language model. The data is exact and it costs nothing.
     """
     try:
-        shopify = is_shopify_store(url)
+        check = probe_store(url)
+        shopify = check.catalogue_available
     except Exception as exc:
         return {"url": url, "error": f"Could not check the store: {exc}"}
 
@@ -185,11 +186,13 @@ def shopify_catalogue(store_url: str, max_products: int | None = None) -> dict[s
         max_products: Cap the number of products (each yields several variant rows).
     """
     try:
-        if not is_shopify_store(store_url):
+        check = probe_store(store_url)
+        if not check.catalogue_available:
             return {
                 "store_url": store_url,
+                "is_shopify": check.is_shopify,
                 "error": (
-                    "Not a Shopify store: it has no public /products.json. "
+                    f"{check.detail} "
                     "Use scrape_page with a description of what you want instead."
                 ),
             }
