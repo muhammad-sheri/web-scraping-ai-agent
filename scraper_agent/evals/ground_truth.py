@@ -1,13 +1,13 @@
 """Building an answer key for one page, from the store's own API.
 
 The whole eval hinges on one detail. A store's API returns the entire
-catalogue — Allbirds has 291 products — while the page the model reads shows
+catalogue (Allbirds has 291 products) while the page the model reads shows
 maybe 24. Scoring 24 predictions against 291 answers would report ~8% recall
 and mean nothing.
 
 So the page defines the scope: every `/products/<handle>` link in the HTML says
 which products were genuinely visible, and the API then supplies the true
-values for exactly those. Recall becomes an honest question again — "of the
+values for exactly those. Recall becomes an honest question again: "of the
 products actually on this page, how many did the model find?"
 """
 
@@ -46,7 +46,7 @@ def product_handles_in_page(html: str) -> list[str]:
 
 
 def product_price(product: dict[str, Any]) -> float | None:
-    """Lowest variant price — what a listing page shows as "from $X"."""
+    """Lowest variant price, which is what a listing page shows as "from $X"."""
     prices: list[float] = []
     for variant in product.get("variants") or []:
         if not isinstance(variant, dict):

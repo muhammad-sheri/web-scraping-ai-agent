@@ -3,7 +3,7 @@
 Raw HTML is mostly markup: a 400KB product page is maybe 8KB of facts. Sending
 the raw document to an LLM is slow, expensive, and *less* accurate, because the
 signal is buried. This module strips the machinery and keeps the structure that
-carries meaning — headings, lists, tables, link targets — in markdown, which
+carries meaning (headings, lists, tables, link targets) in markdown, which
 models read well and which costs a fraction of the tokens.
 """
 

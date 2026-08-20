@@ -3,7 +3,7 @@
 Titles never line up exactly. A listing page shows "Men's Strider" while the
 API calls it "Men's Strider - Medium Grey (Blizzard Sole)"; a model may return
 "Mens Strider" without the apostrophe. Matching therefore runs three rules in
-descending confidence — exact, contiguous containment, then fuzzy ratio — and
+descending confidence (exact, contiguous containment, then fuzzy ratio) and
 is entirely deterministic, so the metrics built on top are unit-testable
 without a network or a model.
 """

@@ -117,7 +117,7 @@ class ScrapeAgent:
         self.on_progress(f"Fetching {url}")
         page = fetch(url, self.settings, render=render, respect_robots=respect_robots)
         if page.rendered:
-            self.on_progress("Page needed JavaScript — rendered in a headless browser")
+            self.on_progress("Page needed JavaScript, so it was rendered in a headless browser")
 
         markdown, plan, groups = self._process_page(
             page, prompt, None, fields, strip_boilerplate
@@ -221,7 +221,7 @@ class ScrapeAgent:
         return ScrapeResult(
             url=url,
             final_url=url,
-            prompt="(Shopify catalogue — exact data from the store's API)",
+            prompt="(Shopify catalogue: exact data from the store's API)",
             records=records,
             plan={"item_name": "product_variant", "multiple": True, "fields": []},
             provider="shopify-api",
@@ -239,7 +239,7 @@ class ScrapeAgent:
     @staticmethod
     def _require_prompt(prompt: str) -> None:
         if not (prompt or "").strip():
-            raise ValueError("Describe what to extract — the prompt is empty.")
+            raise ValueError("Describe what to extract. The prompt is empty.")
 
     def _process_page(
         self,
@@ -343,7 +343,7 @@ class ScrapeAgent:
             for f in plan.fields
         )
         expectation = (
-            f"Return EVERY {plan.item_name} in the content below — there are "
+            f"Return EVERY {plan.item_name} in the content below. There are "
             f"usually many, do not stop after the first one."
             if plan.multiple
             else f"Return the {plan.item_name} described in the content below."

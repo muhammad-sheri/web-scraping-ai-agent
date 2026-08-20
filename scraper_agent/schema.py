@@ -3,7 +3,7 @@
 "get me every product with its price and link" is not directly executable. The
 agent first asks the model to name the record type and its fields, producing a
 JSON Schema. Extraction then runs *against that schema*, which is what keeps
-results consistent across chunks and across pages — every record has the same
+results consistent across chunks and across pages, so every record has the same
 keys instead of whatever the model felt like emitting that call.
 """
 

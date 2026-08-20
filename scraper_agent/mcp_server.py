@@ -1,4 +1,4 @@
-"""MCP server — exposes the scraper to Claude Desktop, Claude Code, or any MCP client.
+"""MCP server: exposes the scraper to Claude Desktop, Claude Code, or any MCP client.
 
 Run it directly (`scrape-agent-mcp`) or point a client at it; see the README for
 the config snippet.
@@ -6,7 +6,7 @@ the config snippet.
 Two decisions worth knowing about:
 
 *Token discipline.* A catalogue can be several thousand rows. Returning those
-inline would bury the client's context in data it cannot use — the classic
+inline would bury the client's context in data it cannot use, which is the classic
 agent failure mode. Every tool caps what it returns, flags the truncation, and
 writes the complete dataset to a file whose path it hands back. The model gets
 a readable sample plus a pointer, not a wall of JSON.
@@ -93,7 +93,7 @@ def check_store(url: str) -> dict[str, Any]:
 
     Call this before scraping a shop. Shopify stores expose their real
     catalogue, so they should go through shopify_catalogue rather than being
-    read by a language model — the data is exact and it costs nothing.
+    read by a language model. The data is exact and it costs nothing.
     """
     try:
         shopify = is_shopify_store(url)
@@ -172,7 +172,7 @@ def scrape_page(
 
 @mcp.tool
 def shopify_catalogue(store_url: str, max_products: int | None = None) -> dict[str, Any]:
-    """Get a Shopify store's COMPLETE catalogue as exact data — no AI, no cost.
+    """Get a Shopify store's COMPLETE catalogue as exact data, with no AI and no cost.
 
     Reads the store's own product API, so values are the store's records rather
     than a model's reading of a page: exact prices, compare-at prices, SKUs,
@@ -189,7 +189,7 @@ def shopify_catalogue(store_url: str, max_products: int | None = None) -> dict[s
             return {
                 "store_url": store_url,
                 "error": (
-                    "Not a Shopify store — it has no public /products.json. "
+                    "Not a Shopify store: it has no public /products.json. "
                     "Use scrape_page with a description of what you want instead."
                 ),
             }

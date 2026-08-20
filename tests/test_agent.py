@@ -124,7 +124,7 @@ def test_missing_fields_become_null(stub_fetch):
 def test_single_record_plan_never_discards_extracted_rows(stub_fetch):
     """Regression: a planner guessing multiple=false used to truncate to one row.
 
-    Seen for real — qwen2.5:3b answered multiple=false for "every book with its
+    Seen for real: qwen2.5:3b answered multiple=false for "every book with its
     title and price" on a 20-book page, and 19 real records were dropped.
     """
     stub_fetch()

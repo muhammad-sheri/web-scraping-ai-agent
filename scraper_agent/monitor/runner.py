@@ -2,7 +2,7 @@
 
 Both detectors run off a *single* extraction per page. Scoring a canary needs
 the same records that the drift signals are computed from, so fetching twice
-would cost double and — worse — could compare two different snapshots of a
+would cost double and, worse, could compare two different snapshots of a
 page that changed in between.
 """
 
@@ -70,7 +70,7 @@ class MonitorReport:
         return [p for p in self.pages if _RANK[p.severity] >= _RANK[WARN]]
 
     def exit_code(self, fail_on: str = ALERT) -> int:
-        """0 clean, 1 warn, 2 alert — so CI can gate on it."""
+        """0 clean, 1 warn, 2 alert, so CI can gate on it."""
         if _RANK[self.severity] < _RANK[fail_on]:
             return 0
         return 2 if self.severity == ALERT else 1

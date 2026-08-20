@@ -1,7 +1,7 @@
 """HTTP with a fallback for sites that block ordinary Python clients.
 
 Plenty of sites serve a 403 to `httpx` and a 200 to Chrome while allowing the
-exact same page in robots.txt. The block is not about permission — it keys off
+exact same page in robots.txt. The block is not about permission. It keys off
 the TLS/HTTP2 handshake fingerprint, which every Python HTTP client shares and
 no browser does.
 

@@ -1,4 +1,4 @@
-"""Shopify catalogue extraction. Offline — the HTTP layer is stubbed."""
+"""Shopify catalogue extraction, offline, with the HTTP layer stubbed."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Grounding verification — numbers must have come from the page.
+"""Grounding verification: numbers must have come from the page.
 
 Written after the eval caught qwen2.5:3b returning $12.99 for all 34 products
 on a page that displayed no prices whatsoever.

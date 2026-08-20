@@ -4,7 +4,7 @@
 # Streamlit applies these to its own components (widgets, dataframes, badges,
 # alerts), so the app looks designed instead of looking like default Streamlit
 # with a stylesheet fighting it. ui.py adds only the layer this cannot express
-# — the hero, the stat tiles and the filter panel.
+# the hero, the stat tiles and the filter panel.
 #
 # Light and dark are both fully specified, so the theme toggle in the app menu
 # produces two finished looks rather than one good one and one accident.
@@ -44,7 +44,7 @@ codeBackgroundColor = "#F3F3F8"
 codeTextColor = "#4338CA"
 
 # Semantic colours, used by st.badge and the alert boxes. Green means in
-# stock, red means out of stock, orange means discounted — the same meanings
+# stock, red means out of stock, orange means discounted, the same meanings
 # the table columns carry.
 greenColor = "#0E9F6E"
 greenTextColor = "#05603A"

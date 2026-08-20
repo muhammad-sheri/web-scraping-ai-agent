@@ -1,4 +1,4 @@
-"""Shared fixtures. Every test here runs offline — no network, no API keys."""
+"""Shared fixtures. Every test here runs offline: no network, no API keys."""
 
 from __future__ import annotations
 

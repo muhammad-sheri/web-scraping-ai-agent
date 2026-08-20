@@ -4,7 +4,7 @@ Evals normally stall on labelled data: someone has to say what the right
 answer was. This package sidesteps that. A Shopify store publishes its own
 records at /products.json, and the same store renders those products as HTML.
 So the store hands us both the question and the answer key, for free, on every
-store that exists — no annotation, no fixtures that rot.
+store that exists, with no annotation and no fixtures that rot.
 """
 
 from scraper_agent.evals.ground_truth import (

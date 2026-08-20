@@ -1,6 +1,6 @@
 """Streamlit UI rendering, via AppTest.
 
-Layout and wiring only — no Scrape click, since that would hit the network;
+Layout and wiring only, with no Scrape click, since that would hit the network;
 the agent pipeline itself is covered elsewhere.
 
 Two classes of regression these exist for:
@@ -54,7 +54,7 @@ def test_public_demo_renders_without_exceptions(monkeypatch):
 
 @pytest.mark.parametrize("public_demo", [True, False])
 def test_neither_mode_renders_a_sidebar(monkeypatch, public_demo):
-    """The redesign has no sidebar — a scrape needs one input, not a control panel."""
+    """The redesign has no sidebar. A scrape needs one input, not a control panel."""
     at = _run(monkeypatch, public_demo)
     assert not at.sidebar.header
     assert not at.sidebar.markdown
@@ -90,7 +90,7 @@ def test_normal_mode_offers_both_extraction_modes(monkeypatch):
 
 
 def test_public_demo_skips_the_mode_choice(monkeypatch):
-    """Shopify mode is forced, not offered — there is nothing to route to."""
+    """Shopify mode is forced, not offered, because there is nothing to route to."""
     at = _run(monkeypatch, public_demo=True)
     assert not any(s.label == "Mode" for s in at.segmented_control)
 
@@ -152,7 +152,7 @@ def _with_catalogue(monkeypatch, **state) -> AppTest:
     at.session_state["result_shopify"] = True
     at.session_state["result_currency"] = "USD"
     at.session_state["result_url"] = "https://s.com"
-    # Filter widget keys carry a generation number (see app.fkey) — seeding a
+    # Filter widget keys carry a generation number (see app.fkey), so seeding a
     # bare "flt_search" would set a key no widget reads.
     for key, value in state.items():
         at.session_state[f"{key}_0" if key.startswith("flt_") else key] = value
@@ -168,7 +168,7 @@ def test_results_render_without_rerunning_the_scrape(monkeypatch):
 
 
 def test_the_hero_collapses_once_there_are_results(monkeypatch):
-    # Match the element, not the stylesheet — the rule is always present.
+    # Match the element, not the stylesheet, since the rule is always present.
     assert '<div class="fx-hero">' in _html(_run(monkeypatch, public_demo=True))
     assert '<div class="fx-hero fx-compact">' in _html(_with_catalogue(monkeypatch))
 
@@ -177,7 +177,7 @@ def test_the_hero_collapses_once_there_are_results(monkeypatch):
 
 
 def test_catalogue_stats_replace_the_cost_readout(monkeypatch):
-    """Catalogue data has no token cost — the interesting numbers are stock ones."""
+    """Catalogue data has no token cost, so the interesting numbers are stock ones."""
     at = _with_catalogue(monkeypatch)
     body = _html(at)
     for label in ("Products", "Variants", "In stock", "Price range"):
@@ -190,7 +190,7 @@ def test_stats_count_products_not_just_rows(monkeypatch):
     body = _html(_with_catalogue(monkeypatch))
     assert ">2<" in body                       # 2 products
     assert ">3<" in body                       # 3 variants
-    assert "$585.00 – $1,205.00" in body
+    assert "$585.00 to $1,205.00" in body
 
 
 def test_stats_describe_the_filtered_set_with_the_total_for_context(monkeypatch):
@@ -240,7 +240,7 @@ def test_a_narrowed_price_slider_does_count(monkeypatch):
     at = _with_catalogue(monkeypatch, flt_price=(600.0, 900.0))
     body = _html(at)
     assert "No filters" not in body
-    assert "600–900" in body
+    assert "600 to 900" in body
 
 
 def test_stock_filter_narrows_the_table(monkeypatch):
@@ -275,7 +275,7 @@ def test_ungrouping_shows_every_variant_row(monkeypatch):
 
 
 def test_the_column_picker_appears_only_for_the_flat_table(monkeypatch):
-    """The grouped view has its own fixed summary columns — a picker would lie."""
+    """The grouped view has its own fixed summary columns, so a picker would lie."""
     flat = _with_catalogue(monkeypatch, flt_view="Every variant")
     assert any(m.label == "Columns to show" for m in flat.multiselect)
     grouped = _with_catalogue(monkeypatch)
@@ -293,8 +293,8 @@ def test_reset_starts_a_new_widget_generation(monkeypatch):
     """Reset cannot just delete the keys.
 
     A button click ships every widget's current value in the same message, and
-    those values are reapplied when the widgets re-register during the rerun —
-    so the search box kept its text while the header chips said "No filters".
+    those values are reapplied when the widgets re-register during the rerun, so
+    the search box kept its text while the header chips said "No filters".
     Bumping the generation gives Streamlit widgets it has never seen. AppTest
     does not model that round trip, so this asserts the mechanism; the
     behaviour itself was verified in a browser.

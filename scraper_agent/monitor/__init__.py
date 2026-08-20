@@ -10,12 +10,12 @@ Detecting that needs ground truth, and ground truth normally means hand
 labelling, which nobody does nightly. So this package runs two detectors over
 the same extraction pass:
 
-*Truth-scored canaries* — Shopify pages, where the store publishes its own
+*Truth-scored canaries*, meaning Shopify pages where the store publishes its own
 records, so recall and precision are measurable absolutely. These do not have
 to be pages you care about; they exercise the same fetch/clean/plan/extract
 code path, so they catch regressions in the *extractor*.
 
-*Signal drift* — for any page at all, with no ground truth: record count,
+*Signal drift*, for any page at all and with no ground truth: record count,
 schema shape, per-field null rates and numeric distributions, compared against
 the page's own recent history. This catches breakage on the *site*.
 

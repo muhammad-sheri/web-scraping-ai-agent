@@ -1,4 +1,4 @@
-"""Presentation layer for app.py — the design system Streamlit config can't express.
+"""Presentation layer for app.py: the design system Streamlit config cannot express.
 
 Division of labour, deliberately:
 
@@ -6,7 +6,7 @@ Division of labour, deliberately:
                           applies these to its *own* components, so widgets,
                           dataframes, badges and alerts come out on-theme
                           instead of being fought with a stylesheet.
-  ui.py                   the pieces Streamlit has no component for — the
+  ui.py                   the pieces Streamlit has no component for: the
                           hero band, the stat tiles, the filter panel shell,
                           section headers, empty states.
 
@@ -16,7 +16,7 @@ st.html().
 
 Streamlit internals are targeted only through `data-testid` attributes that are
 stable across releases, and every rule degrades to "slightly plainer" rather
-than "broken" if one stops matching — the theme config, not the CSS, is what
+than "broken" if one stops matching. The theme config, not the CSS, is what
 makes the app look designed.
 """
 
@@ -116,7 +116,7 @@ def css(theme: str = "light") -> str:
 
 /* ---- Streamlit chrome ------------------------------------------------- */
 /* The app has its own header, so the default one is dead space. The toolbar
-   (rerun / settings menu) stays reachable — only its backdrop is removed. */
+   (rerun / settings menu) stays reachable; only its backdrop is removed. */
 [data-testid="stHeader"] {{ background: transparent; height: 0; }}
 [data-testid="stToolbar"] {{ right: .5rem; top: .35rem; }}
 [data-testid="stAppDeployButton"] {{ display: none; }}
@@ -350,7 +350,7 @@ def hero(
     top-right corner: Streamlit Cloud draws its own Fork/GitHub toolbar in
     exactly that spot, and the two overlapped.
 
-    `compact` shrinks the band once results exist — the pitch has done its job
+    `compact` shrinks the band once results exist. The pitch has done its job
     by then, and 370px above the data is just scrolling.
     """
     parts = []
@@ -378,14 +378,14 @@ def stat_tiles(tiles: list[dict]) -> str:
     """A responsive row of stat cards.
 
     Each tile: {"label", "value", "sub" (optional), "tone" (optional)}. Tone
-    picks the accent edge — the same green/red/orange meanings the table uses.
+    picks the accent edge, using the same green/red/orange meanings as the table.
     """
     tones = {"green": "var(--fx-green)", "red": "var(--fx-red)",
              "orange": "var(--fx-orange)", "primary": "var(--fx-primary)"}
     cells = []
     for tile in tiles:
         accent = tones.get(str(tile.get("tone", "primary")), tones["primary"])
-        value = str(tile.get("value", "—"))
+        value = str(tile.get("value", "n/a"))
         # Long values (a price range) need to step down or they wrap badly.
         size = " fx-sm" if len(value) > 12 else ""
         sub = f'<div class="fx-stat-sub">{escape(str(tile["sub"]))}</div>' if tile.get("sub") else ""

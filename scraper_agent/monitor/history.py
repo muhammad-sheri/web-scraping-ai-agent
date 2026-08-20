@@ -137,7 +137,7 @@ class History:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # A process killed mid-write leaves a final line with no newline.
         # Appending straight onto it would splice this run into the broken one
-        # and lose both — one interrupted write would cost two runs, and the
+        # and lose both. One interrupted write would cost two runs, and the
         # second loss would be invisible.
         if self._missing_final_newline():
             with self.path.open("a", encoding="utf-8") as handle:

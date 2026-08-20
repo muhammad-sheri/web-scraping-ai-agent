@@ -1,4 +1,4 @@
-"""Complete catalogue extraction from Shopify stores — no LLM involved.
+"""Complete catalogue extraction from Shopify stores, with no LLM involved.
 
 Every Shopify storefront publishes its catalogue as JSON at `/products.json`
 (and per collection at `/collections/<handle>/products.json`). That endpoint is
@@ -152,7 +152,7 @@ def fetch_store_meta(url: str, settings: Settings | None = None) -> dict[str, An
     """Store name, country and currency from `/meta.json`. Best effort.
 
     Nothing else in the catalogue says what currency those prices are in, and
-    a store that does not serve this endpoint is still perfectly scrapable —
+    a store that does not serve this endpoint is still perfectly scrapable,
     so every failure here returns {} rather than raising.
     """
     settings = settings or Settings.from_env()
@@ -222,7 +222,7 @@ def _variant_row(
 
 
 def flatten_product(product: dict[str, Any], store_url: str) -> list[dict[str, Any]]:
-    """One row per variant — a size or colour is its own SKU, price and stock."""
+    """One row per variant, since a size or colour is its own SKU, price and stock."""
     root = f"{urlparse(store_url).scheme}://{urlparse(store_url).netloc}"
     handle = product.get("handle", "")
     images = product.get("images") or []
@@ -287,7 +287,7 @@ def fetch_products(
 
         if response.status_code == 404:
             raise ShopifyError(
-                f"{endpoint} returned 404 — this does not look like a Shopify store."
+                f"{endpoint} returned 404, so this does not look like a Shopify store."
             )
         if response.status_code >= 400:
             raise ShopifyError(f"{endpoint} returned HTTP {response.status_code}")

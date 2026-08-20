@@ -1,4 +1,4 @@
-"""Local Ollama backend — no API key, no per-token cost.
+"""Local Ollama backend, with no API key and no per-token cost.
 
 Ollama serves an OpenAI-ish chat endpoint on localhost. Passing a JSON schema
 as `format` constrains decoding to valid JSON (Ollama >= 0.5); older builds
@@ -95,7 +95,7 @@ class OllamaProvider(LLMProvider):
 
         raise ProviderError(
             f"Ollama model {self.model!r} did not return usable JSON. "
-            f"Smaller models struggle with structured extraction — try a larger "
+            f"Smaller models struggle with structured extraction, so try a larger "
             f"one (e.g. `ollama pull qwen2.5:7b`). Last error: {last_error}"
         )
 

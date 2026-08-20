@@ -171,7 +171,7 @@ def to_markdown(benchmark: Benchmark) -> str:
     for run in benchmark.runs:
         if not run.ok:
             lines.append(
-                f"| {_store_name(run.page_url)} | {run.model} | — | — | — | — | — | — | — | "
+                f"| {_store_name(run.page_url)} | {run.model} | n/a | n/a | n/a | n/a | n/a | n/a | n/a | "
                 f"failed |"
             )
             continue

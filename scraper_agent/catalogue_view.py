@@ -2,8 +2,8 @@
 
 The catalogue arrives as one row per *variant*, which is the right shape for
 export but the wrong shape for reading: a store with 700 products becomes 5000
-near-identical rows. These helpers back the UI's two answers to that — narrow
-the rows down (search, price, stock, vendor), and fold the survivors back up
+near-identical rows. These helpers back the UI's two answers to that. Narrow
+the rows down (search, price, stock, vendor), then fold the survivors back up
 into one row per product that can be expanded to show its variants.
 
 Kept out of app.py deliberately: this is the part with edge cases worth
@@ -49,7 +49,7 @@ def price_bounds(records: Iterable[Record]) -> tuple[float, float]:
 
 
 def distinct(records: Iterable[Record], field: str) -> list[str]:
-    """Sorted non-empty values of a field — the options for a facet filter."""
+    """Sorted non-empty values of a field, ready to use as facet filter options."""
     values = {str(r.get(field)).strip() for r in records if r.get(field)}
     return sorted(v for v in values if v and v.lower() != "none")
 
@@ -173,14 +173,19 @@ def variants_of(records: list[Record], product_id: Any) -> list[Record]:
 
 
 def price_label(low: float | None, high: float | None, currency: str = "") -> str:
-    """"$91.00" for a single price, "$91.00 – $130.00" for a spread, "—" for none."""
+    """"$91.00" for a single price, "$91.00 to $130.00" for a spread.
+
+    Spelled "to" rather than punctuated with a dash because this lands in a
+    stat tile that people read at a glance, and a word is unambiguous where a
+    dash could be a minus sign or a hyphen in a part number.
+    """
     if low is None or high is None:
-        return "—"
+        return "no prices"
     symbol = CURRENCY_SYMBOLS.get((currency or "").upper(), "")
     left = f"{symbol}{low:,.2f}"
     if abs(high - low) < 0.005:
         return left
-    return f"{left} – {symbol}{high:,.2f}"
+    return f"{left} to {symbol}{high:,.2f}"
 
 
 CURRENCY_SYMBOLS = {

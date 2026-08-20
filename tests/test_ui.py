@@ -1,6 +1,6 @@
 """The design system: pure HTML builders, and the tokens they share with the theme.
 
-No browser and no Streamlit runtime needed — ui.py returns strings on purpose.
+No browser and no Streamlit runtime needed, because ui.py returns strings on purpose.
 """
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ def test_unknown_theme_names_fall_back_to_light():
 
 
 def test_the_canvas_is_not_a_flat_default_white():
-    """A tinted, lit ground is the point — every default Streamlit app is grey."""
+    """A tinted, lit ground is the point, since every default Streamlit app is grey."""
     for theme in ("light", "dark"):
         css = ui.css(theme)
         assert '[data-testid="stAppViewContainer"]' in css
@@ -158,7 +158,7 @@ def test_unknown_tone_falls_back_to_primary():
 
 def test_long_values_step_down_a_size():
     """A price range is three times the width of a count and would wrap."""
-    assert "fx-sm" in ui.stat_tiles([{"label": "Price", "value": "$585.00 – $13,999.00"}])
+    assert "fx-sm" in ui.stat_tiles([{"label": "Price", "value": "$585.00 to $13,999.00"}])
     assert "fx-sm" not in ui.stat_tiles([{"label": "Products", "value": "385"}])
 
 

@@ -1,4 +1,4 @@
-"""Web Scraping AI Agent — describe what you want, the agent extracts it."""
+"""Web Scraping AI Agent: describe what you want, the agent extracts it."""
 
 from scraper_agent.agent import ScrapeAgent, ScrapeResult
 
